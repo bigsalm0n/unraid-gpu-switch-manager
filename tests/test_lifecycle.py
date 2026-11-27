@@ -1,5 +1,6 @@
 import copy
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -199,6 +200,19 @@ class LifecycleTests(Rig):
         del self.procs[202]  # Open device handle only, absent from NVML.
         self.assertIn(202, self.hw.clients(self.hw.info(self.gaming)))
         with self.assertRaises(Refused):
+            self.hook("prepare")
+        self.assertFalse(self.ops)
+
+    def test_sysfs_drm_minor_detects_client_without_host_device_node(self):
+        drm = self.hw.pci / self.gaming / "drm/controlD66"
+        drm.mkdir(parents=True)
+        number = os.stat("/dev/full").st_rdev
+        (drm / "dev").write_text(f"{os.major(number)}:{os.minor(number)}")
+        proc = self.hw.proc / "212"
+        (proc / "fd").mkdir(parents=True)
+        (proc / "fd/3").symlink_to("/dev/full")
+        self.assertIn(212, self.hw.clients(self.hw.info(self.gaming)))
+        with self.assertRaisesRegex(Refused, "unquiesced client"):
             self.hook("prepare")
         self.assertFalse(self.ops)
 

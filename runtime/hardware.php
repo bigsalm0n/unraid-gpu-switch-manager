@@ -61,6 +61,18 @@ function driver(string $device): ?string
     return $target === false ? null : basename($target);
 }
 
+function sysfsDeviceNumber(string $path): int
+{
+    $number = field($path);
+    ensure(preg_match('/^([0-9]{1,4}):([0-9]{1,7})$/D', $number, $parts) === 1,
+        'Invalid device number at ' . $path);
+    $major = (int)$parts[1];
+    $minor = (int)$parts[2];
+    ensure($major <= 4095 && $minor <= 1048575, 'Out-of-range device number at ' . $path);
+    // Linux encodes the low eight minor bits below the major and the remainder above it.
+    return (($minor & ~255) << 12) | ($major << 8) | ($minor & 255);
+}
+
 function devicePaths(object $container): array
 {
     $devices = array_column($container->HostConfig->Devices ?? [], 'PathOnHost');
@@ -219,6 +231,7 @@ class Hardware
     {
         ensure(is_dir($this->proc) && is_readable($this->proc), 'Process inventory is unavailable');
         $nodes = [];
+        $numbers = [];
         if ($data['drivers'][$data['pci']] === 'nvidia') {
             ensure(ctype_digit((string)$data['minor']), 'NVIDIA minor number unavailable');
             $nodes[] = $this->dev . '/nvidia' . $data['minor'];
@@ -226,7 +239,8 @@ class Hardware
         foreach ($data['drivers'] as $address => $_) {
             $slot = $this->pci . '/' . $address;
             foreach (paths($slot . '/drm/*/dev') as $node) {
-                $nodes[] = $this->dev . '/dri/' . basename(dirname($node));
+                // DRM can publish a minor in sysfs without creating its host /dev node.
+                $numbers[sysfsDeviceNumber($node)] = true;
             }
             foreach (paths($slot . '/sound/card[0-9]*') as $card) {
                 $number = substr(basename($card), 4);
@@ -234,7 +248,6 @@ class Hardware
                 $nodes[] = $this->dev . '/snd/controlC' . $number;
             }
         }
-        $numbers = [];
         foreach ($nodes as $node) {
             $stat = @stat($node);
             ensure($stat && ($stat['mode'] & 0170000) === 0020000, 'Invalid GPU device node: ' . $node);
