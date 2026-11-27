@@ -78,6 +78,12 @@ class Installer:
         old = self.previous()
         current = {} if remove else read(self.source / MANIFEST)
         if not remove:
+            runtime = self.source / LIB / "python"
+            if runtime.is_dir():
+                for path in sorted(runtime.rglob("*")):
+                    if path.is_file():
+                        current[path.relative_to(self.source).as_posix()] = digest(path)
+                write(self.source / MANIFEST, current)
             current[MANIFEST] = digest(self.source / MANIFEST)
             for name, expected in current.items():
                 require(digest(self.source / name) == expected, "Package integrity failure: " + name)

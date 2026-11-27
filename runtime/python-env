@@ -1,0 +1,10 @@
+# shellcheck shell=bash
+# Select the private interpreter when installed, then try a compatible host Python.
+select_python() {
+    python="$1/python/bin/python3"
+    if [[ -x $python ]] && "$python" -EBc 'import sys; sys.exit(sys.version_info < (3, 9))' 2>/dev/null; then
+        return 0
+    fi
+    python=$(command -v python3) &&
+        "$python" -EBc 'import sys; sys.exit(sys.version_info < (3, 9))' 2>/dev/null
+}

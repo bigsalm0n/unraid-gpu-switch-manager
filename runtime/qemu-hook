@@ -4,9 +4,13 @@ case "$2/$3" in
     prepare/begin|start/begin|started/begin|release/end) ;;
     *) exit 0 ;;
 esac
-ctl=/usr/local/lib/gpu-switch-manager/gpuctl
-if [[ -x $ctl ]] && command -v python3 >/dev/null; then
-    exec "$ctl" hook "$1" "$2" "$3"
+lib=/usr/local/lib/gpu-switch-manager
+if [[ -r $lib/python-env && -r $lib/gpuctl.py ]]; then
+    # shellcheck source=runtime/python-env
+    source "$lib/python-env"
+    if select_python "$lib"; then
+        exec "$python" -EB "$lib/gpuctl.py" hook "$1" "$2" "$3"
+    fi
 fi
 # This file lives on the libvirt image. It still runs if boot-time plugin
 # installation failed. Preserve pending journals and allow unrelated guests.

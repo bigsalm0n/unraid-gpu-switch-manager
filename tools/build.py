@@ -27,6 +27,9 @@ def build(out, tag=None, repository="bigsalm0n/unraid-gpu-switch-manager"):
         for name in sources:
             if name.startswith(folder + "/"):
                 files[dest + name[len(folder)+1:]] = (ROOT / name).read_bytes().replace(b"\r\n", b"\n")
+    # Keep the source CLI directly runnable for development.
+    files[LIB + "gpuctl.py"] = files.pop(LIB + "gpuctl")
+    files[LIB + "gpuctl"] = (ROOT / "packaging/gpuctl").read_bytes().replace(b"\r\n", b"\n")
     for source in ("packaging/install.py", "packaging/legacy.json"):
         files[LIB + Path(source).name] = (ROOT / source).read_bytes().replace(b"\r\n", b"\n")
     metadata = (json.dumps(release.metadata(), sort_keys=True, indent=2) + "\n").encode()
@@ -58,17 +61,11 @@ def build(out, tag=None, repository="bigsalm0n/unraid-gpu-switch-manager"):
     ET.SubElement(f, "INLINE").text = base64.b64encode(binary).decode()
     ET.SubElement(f, "SHA256").text = sha
     f = ET.SubElement(plg, "FILE", Run="/bin/bash")
-    ET.SubElement(f, "INLINE").text = f"""
-set -euo pipefail
-python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3,9) else "Python 3.9 or later required")'
-printf '%s  %s\\n' '{sha}' '{cache}' | sha256sum -c -
-stage=$(mktemp -d)
-trap 'rm -rf -- "$stage"' EXIT
-tar -xJf '{cache}' -C "$stage"
-python3 -B "$stage/{LIB}install.py" install
-"""
+    install_script = (ROOT / "packaging/install.sh").read_text(encoding="utf-8")
+    ET.SubElement(f, "INLINE").text = install_script.replace("@PACKAGE_SHA@", sha).replace("@PACKAGE@", cache)
     f = ET.SubElement(plg, "FILE", Run="/bin/bash", Method="remove")
-    ET.SubElement(f, "INLINE").text = f"set -eu\npython3 -B /{LIB}install.py remove\nrm -f -- '{cache}'\n"
+    remove_script = (ROOT / "packaging/remove.sh").read_text(encoding="utf-8")
+    ET.SubElement(f, "INLINE").text = remove_script.replace("@PACKAGE@", cache)
     manifest = out / "gpu-switch-manager.plg"
     manifest.write_bytes(ET.tostring(plg, encoding="utf-8", xml_declaration=True))
     (out / "RELEASE-NOTES.md").write_bytes(notes.encode())
