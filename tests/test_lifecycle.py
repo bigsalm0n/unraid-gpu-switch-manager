@@ -154,6 +154,34 @@ class Rig(unittest.TestCase):
 
 
 class LifecycleTests(Rig):
+    def test_profiled_vm_can_start_without_pci_devices(self):
+        vm = "Windows"
+        xml = f"<domain><name>{vm}</name><uuid>{self.domain_id}</uuid><devices/></domain>"
+        for event, phase in (("prepare", "begin"), ("start", "begin"), ("started", "begin"), ("release", "end")):
+            self.dispatch("hook", vm, event, phase, data=xml)
+        self.assertFalse(self.ops)
+        self.assertFalse(self.store.journal("game").exists())
+        with self.assertRaisesRegex(Refused, "Add managed devices to VM"):
+            self.m.prepare(self.cfg, "game", vm, self.domain_id, [], True)
+
+    def test_partial_passthrough_still_refused(self):
+        xml = self.xml().replace(
+            "<hostdev type='pci' managed='yes'><source><address domain='0x0000' bus='0x62' slot='0x00' function='0x1'/></source></hostdev>",
+            "")
+        with self.assertRaisesRegex(Refused, "exactly the approved PCI functions"):
+            self.dispatch("hook", "Windows", "prepare", "begin", data=xml)
+        self.assertFalse(self.ops)
+
+    def test_release_with_no_devices_still_recovers_its_own_lease(self):
+        self.hook("prepare")
+        vm = "Windows"
+        xml = f"<domain><name>{vm}</name><uuid>{self.domain_id}</uuid><devices/></domain>"
+        with self.assertRaisesRegex(Refused, "GPU reserved"):
+            self.dispatch("hook", vm, "prepare", "begin", data=xml)
+        self.dispatch("hook", vm, "release", "end", data=xml)
+        self.assertFalse(self.store.journal("game").exists())
+        self.assertEqual(self.ops[-2:], [("start", "voice"), ("start", "dependent")])
+
     def test_start_vm_service_only_after_verified_assignment(self):
         self.cfg["profiles"]["Windows"]["containers"][-1]["policy"] = "start"
         self.store.change(self.cfg)
