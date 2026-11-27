@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 set -euo pipefail
 package='@PACKAGE@'
 printf '%s  %s\n' '@PACKAGE_SHA@' "$package" | sha256sum -c -

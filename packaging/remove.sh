@@ -1,3 +1,4 @@
+# shellcheck shell=bash
 set -eu
 lib=/usr/local/lib/gpu-switch-manager
 # shellcheck source=runtime/python-env
