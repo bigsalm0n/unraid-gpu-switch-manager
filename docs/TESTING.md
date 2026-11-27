@@ -1,4 +1,4 @@
-# Verification and the test host acceptance
+# Tests and hardware acceptance
 
 ## Automated verification
 
@@ -23,11 +23,11 @@ The check runs Bash, PHP and JavaScript syntax checks, ShellCheck, JSON Schema a
 | Packaging and access | Real May package as migration fixture, temporary-root install/upgrade/remove, existing native hook and foreign files, installation failure rollback, boot with an outstanding journal, native-session/CSRF/confirmation contract with a stub CLI. |
 | Release integrity | Exercise the manifest's checksum gate with a damaged cache. Check matching metadata in the package and installer, RC upgrade ordering, dirty and mismatched tags, development reproducibility and complete stable-promotion notes using real temporary Git repositories. |
 
-## First authorized the test host session
+## First hardware session
 
-**Hardware acceptance is pending.** Run these commands as root on the test host only after authorizing the test. Use a quiet window for the shared GPU and keep the protected workload and the control VM running. Record model, kernel, plugin version, timestamps, outputs and observations for each cycle. Store evidence under a private array share after testing. `/tmp` is temporary.
+**Hardware acceptance is pending.** Run these commands as root on the test host only after authorizing the test. Use a quiet window for the shared GPU and keep the protected workload and the control VM running. Record the GPU model, kernel, plugin version, timestamps, outputs and observations for each cycle. Store evidence under a private array share after testing. `/tmp` is temporary.
 
-Follow the [install procedure](../README.md#install). Open Bash on the test host. Supply the exact Windows and the control VM domain names displayed by virsh.
+Follow the [install procedure](../README.md#install). Open Bash on the test host. Supply the exact guest and control VM names displayed by virsh.
 
 ```bash
 set -euo pipefail
@@ -43,11 +43,11 @@ T=$(mktemp -d /tmp/gsm-accept.XXXXXX)
 chmod 700 "$T"
 virsh list --all
 read -r -p "Exact gaming VM name: " VM
-read -r -p "Exact running the control VM VM name: " HA
-test "$VM" != "$HA"
+read -r -p "Running control VM name: " CONTROL
+test "$VM" != "$CONTROL"
 test "$(virsh domstate "$VM")" = "shut off"
-test "$(virsh domstate "$HA")" = running
-HA_ID=$(virsh domid "$HA")
+test "$(virsh domstate "$CONTROL")" = running
+CONTROL_ID=$(virsh domid "$CONTROL")
 virsh dumpxml --inactive --security-info "$VM" > "$T/before.xml"
 sha256sum /etc/libvirt/hooks/qemu > "$T/native.sha256"
 uname -a
@@ -84,7 +84,7 @@ docker ps -a --format '{{.Names}}  {{.Status}}'
 cat "$T/enrolled.json"
 ```
 
-Review the example workload list and correct it for the actual host before import. Select an explicit leave policy for any reported all-GPU workload that must remain untouched. Active target clients in a leave container still block the operation. Enroll another display controller as protected using the BDF shown by discovery if desired. To retain this additional enrollment, make it before exporting the JSON above.
+Review the selected workloads and correct it for the actual host before import. Select an explicit leave policy for any reported all-GPU workload that must remain untouched. Active target clients in a leave container still block the operation. Enroll another display controller as protected using the BDF shown by discovery if desired. To retain this additional enrollment, make it before exporting the JSON above.
 
 ```bash
 "$ctl" import < "$T/enrolled.json"
@@ -98,7 +98,7 @@ If dry-run reports conflicting hostdevs or unsafe isolation, stop here. Use the 
 
 ### Five start and shutdown cycles
 
-For post-release CUDA, supply an existing local Docker image with a working CUDA-enabled PyTorch installation. It will run a disposable, network-isolated test container pinned to the shared UUID. Confirm the continuous application service is producing inference responses in its existing client during each cycle. For the example protected containers, compare Docker IDs, running state, restart counts and start times. Enter only the names of protected containers that actually exist.
+For post-release CUDA, supply an existing local Docker image with a working CUDA-enabled PyTorch installation. It will run a disposable, network-isolated test container pinned to the shared UUID. Confirm the continuous application service is producing inference responses in its existing client during each cycle. For the protected containers, compare Docker IDs, running state, restart counts and start times. Enter only the names of protected containers that actually exist.
 
 ```bash
 read -r -p "Local CUDA PyTorch image: " CUDA_IMAGE
@@ -121,10 +121,10 @@ for cycle in 1 2 3 4 5; do
   test "$(basename "$(readlink "/sys/bus/pci/devices/$GP/driver")")" = vfio-pci
   test "$(basename "$(readlink "/sys/bus/pci/devices/$GA/driver")")" = vfio-pci
   nvidia-smi -i "$AI" --query-gpu=uuid,utilization.gpu --format=csv
-  test "$(virsh domid "$HA")" = "$HA_ID"
+  test "$(virsh domid "$CONTROL")" = "$CONTROL_ID"
   diff "$T/protected.before" <(protected_state)
   "$ctl" diagnostics > "$T/active-$cycle.json"
-  read -r -p "Confirm Windows GPU/driver, live inference and HA service all passed (type PASS): " result
+  read -r -p "Confirm Windows GPU/driver, live inference and CONTROL service all passed (type PASS): " result
   test "$result" = PASS
   "$ctl" shutdown "$VM"
   for attempt in {1..120}; do
@@ -139,7 +139,7 @@ for cycle in 1 2 3 4 5; do
   check_cuda | tee "$T/cuda-$cycle.txt"
   diff "$T/protected.before" <(protected_state)
   diff "$T/assigned.before" <(docker inspect --format '{{.Name}} {{.Id}} {{.State.Running}}' "${ASSIGNED[@]}")
-  test "$(virsh domid "$HA")" = "$HA_ID"
+  test "$(virsh domid "$CONTROL")" = "$CONTROL_ID"
   "$ctl" diagnostics > "$T/release-$cycle.json"
 done
 sha256sum -c "$T/native.sha256"

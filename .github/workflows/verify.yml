@@ -2,11 +2,14 @@ name: Test and build
 on:
   pull_request:
   push:
-    branches: ['**']
+    branches-ignore: [main]
   workflow_dispatch:
   workflow_call:
     inputs:
       tag:
+        type: string
+        required: true
+      previous:
         type: string
         required: true
     outputs:
@@ -28,9 +31,13 @@ jobs:
       - name: Exercise the full suite and build the tested version
         env:
           GSM_RELEASE_TAG: ${{ inputs.tag }}
+          GSM_RELEASE_BASE: ${{ inputs.previous }}
         run: |
           git show ff1e0ce:gpu-switch-manager-2026.05.13.txz > "$RUNNER_TEMP/may13.txz"
           export GSM_LEGACY_TEST_TXZ="$RUNNER_TEMP/may13.txz" PATH="/usr/bin:$PATH"
+          if [[ -n $GSM_RELEASE_TAG ]] && ! git show-ref --verify --quiet "refs/tags/$GSM_RELEASE_TAG"; then
+            git tag "$GSM_RELEASE_TAG" HEAD
+          fi
           bash tools/check.sh
       - id: metadata
         run: echo "channel=$(python3 -c 'import json; print(json.load(open("dist/release.json"))["channel"])')" >> "$GITHUB_OUTPUT"
@@ -56,8 +63,16 @@ jobs:
       - name: Rebuild from the same revision and compare every release asset
         env:
           GSM_RELEASE_TAG: ${{ inputs.tag }}
+          GSM_RELEASE_BASE: ${{ inputs.previous }}
         shell: pwsh
         run: |
+          if ($env:GSM_RELEASE_TAG) {
+            git show-ref --verify --quiet "refs/tags/$env:GSM_RELEASE_TAG"
+            if ($LASTEXITCODE -ne 0) {
+              git tag $env:GSM_RELEASE_TAG HEAD
+              if ($LASTEXITCODE) { exit $LASTEXITCODE }
+            }
+          }
           python tools/build.py --output dist
           if ($LASTEXITCODE) { exit $LASTEXITCODE }
           foreach ($asset in Get-ChildItem reference -File) {

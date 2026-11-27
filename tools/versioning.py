@@ -44,7 +44,7 @@ class Release:
                     commit=self.commit, tag=self.tag or None, previous=self.previous or None)
 
 
-def describe(root, requested=None):
+def describe(root, requested=None, previous_override=None):
     commit = git(root, "rev-parse", "HEAD")
     tags = [t for t in git(root, "tag", "--points-at", "HEAD").splitlines() if TAG.fullmatch(t)]
     dirty = git(root, "status", "--porcelain", "--", *INPUTS)
@@ -74,6 +74,8 @@ def describe(root, requested=None):
         if sha == LEGACY_BASE:
             previous = sha
             break
+    if previous_override is not None:
+        previous = previous_override if previous_override != "-" else ""
     span = f"{previous}..HEAD" if previous else "HEAD"
     changes = git(root, "log", "--reverse", "--no-merges", "--format=%s%x09%H", span).splitlines()
     heading = {"candidate": "Release candidate", "stable": "Release", "development": "Development build"}[channel]

@@ -18,7 +18,7 @@ WEB = "usr/local/emhttp/plugins/gpu-switch-manager/"
 
 def build(out, tag=None, repository="bigsalm0n/unraid-gpu-switch-manager"):
     out.mkdir(parents=True, exist_ok=True)
-    release = describe(ROOT, tag or os.environ.get("GSM_RELEASE_TAG"))
+    release = describe(ROOT, tag or os.environ.get("GSM_RELEASE_TAG"), os.environ.get("GSM_RELEASE_BASE") or None)
     version = release.version
     package = "gpu-switch-manager-" + version + ".txz"
     files = {}
@@ -46,10 +46,12 @@ def build(out, tag=None, repository="bigsalm0n/unraid-gpu-switch-manager"):
     sha = hashlib.sha256(binary).hexdigest()
     plg = ET.Element("PLUGIN", name="gpu-switch-manager", author="GPU Switch Manager contributors",
                      version=release.plugin_version, min="6.12.0", launch="Settings/GPUSwitchManager", icon="icon-hardware")
-    if release.channel == "stable":
+    if release.tag:
         if not re.fullmatch(r"[\w.-]+/[\w.-]+", repository):
             raise ValueError("Invalid release repository")
-        plg.set("pluginURL", f"https://github.com/{repository}/releases/latest/download/gpu-switch-manager.plg")
+        base = (f"https://github.com/{repository}/releases/latest/download" if release.channel == "stable"
+                else f"https://raw.githubusercontent.com/{repository}/main")
+        plg.set("pluginURL", base + "/gpu-switch-manager.plg")
     ET.SubElement(plg, "CHANGES").text = notes
     cache = "/boot/config/plugins/gpu-switch-manager/" + package
     f = ET.SubElement(plg, "FILE", Name=cache, Type="base64")

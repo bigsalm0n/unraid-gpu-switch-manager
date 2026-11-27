@@ -1,4 +1,6 @@
 import os
+import hashlib
+import json
 from pathlib import Path
 import subprocess
 import sys
@@ -7,6 +9,7 @@ import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools"))
 from versioning import describe, versions
+from release import BEGIN, END, MANIFEST, candidate, promote
 
 
 class VersionedBuild(unittest.TestCase):
@@ -72,3 +75,41 @@ class VersionedBuild(unittest.TestCase):
         self.assertEqual(a.channel, "development")
         self.assertIn(a.commit[:12], a.version)
         self.assertTrue(a.plugin_version.endswith(".0000"))
+
+    def test_two_main_commits_get_ordered_repeatable_tags(self):
+        first = candidate(self.repo)
+        self.commit("Second tested revision")
+        second = candidate(self.repo)
+        self.assertLess(versions(first)[1], versions(second)[1])
+        self.assertEqual(second, candidate(self.repo))
+
+    def test_rolling_url_and_readme_only_advance_to_verified_releases(self):
+        readme = self.repo / "README.md"
+        readme.write_text(f"Intro\n{BEGIN}\nold\n{END}\nOther docs\n")
+        assets = self.repo / "assets"
+        assets.mkdir()
+        repo = "example/plugin"
+        def bundle(n):
+            tag = f"v2026.12.01-rc.{n}"
+            value = versions(tag)[1]
+            data = f'<PLUGIN version="{value}" />'.encode()
+            (assets / MANIFEST).write_bytes(data)
+            (assets / "release.json").write_text(json.dumps(dict(tag=tag, plugin_version=value)))
+            (assets / "SHA256SUMS").write_text(hashlib.sha256(data).hexdigest() + "  " + MANIFEST)
+            return tag
+        tag = bundle(2)
+        promote(self.repo, assets, repo, tag)
+        original = readme.read_bytes()
+        self.assertIn(f"/releases/download/{tag}/{MANIFEST}".encode(), original)
+        self.assertIn(f"https://raw.githubusercontent.com/{repo}/main/{MANIFEST}".encode(), original)
+        self.assertTrue(original.endswith(b"Other docs\n"))
+        promote(self.repo, assets, repo, tag)
+        promote(self.repo, assets, repo, bundle(1))
+        self.assertEqual(original, readme.read_bytes())
+        installed = (self.repo / MANIFEST).read_bytes()
+        tag = bundle(3)
+        with (assets / MANIFEST).open("ab") as file:
+            file.write(b" ")
+        with self.assertRaisesRegex(ValueError, "checksum"):
+            promote(self.repo, assets, repo, tag)
+        self.assertEqual((self.repo / MANIFEST).read_bytes(), installed)

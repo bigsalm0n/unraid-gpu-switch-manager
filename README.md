@@ -6,7 +6,17 @@ Share an NVIDIA GPU between Docker and a KVM guest. When the guest starts, the p
 
 ## Install
 
-In the Unraid WebGUI, open **Plugins → Install Plugin**, paste the direct URL ending in `/gpu-switch-manager.plg`, and select **Install**. The manifest embeds its checksummed package. A release candidate uses the download URL for its specific tag. Stable releases use the **latest release** download URL. For a private build, an HTTPS server reachable by Unraid can serve the same file.
+In Unraid, open **Plugins → Install Plugin**, paste this URL and select **Install**:
+
+<!-- latest-install:begin -->
+```text
+https://raw.githubusercontent.com/bigsalm0n/unraid-gpu-switch-manager/main/gpu-switch-manager.plg
+```
+
+The release pipeline records the verified tag and its installer here.
+<!-- latest-install:end -->
+
+The URL tracks the latest verified build, including release candidates. The manifest embeds the package and checks its SHA-256 during installation.
 
 If the May plugin is installed, back up its configuration and follow the migration steps first. Its uninstaller deletes saved settings. [May upgrade procedure](docs/AUDIT.md#upgrading-from-the-may-plugin)
 
@@ -46,6 +56,6 @@ python3 tools/build.py
 
 Build from a Git checkout with full tag history. On Windows use `py -3 tools/build.py`. The output includes the installer, package, checksums, generated notes and source revision. To install offline, copy the verified manifest to `/tmp/gpu-switch-manager.plg` and run `plugin install /tmp/gpu-switch-manager.plg`.
 
-Tags use `vYYYY.MM.DD-rc.N` and `vYYYY.MM.DD`. GitHub Actions tests the Linux build, compares the Windows artifacts byte for byte and creates a release draft. Publish the release to make its download URL available. Release notes come from Git history.
+Each push to `main` creates a candidate after Linux tests and a byte-for-byte Windows rebuild. Actions publishes the date-based tag, verifies its public installer, and updates the URL and version shown above. A `vYYYY.MM.DD` tag promotes an accepted revision to stable. Release notes come from Git history.
 
 The technical references cover [ownership and lifecycle](docs/ARCHITECTURE.md), [the legacy audit and redistribution status](docs/AUDIT.md), and [automated tests and hardware acceptance](docs/TESTING.md).

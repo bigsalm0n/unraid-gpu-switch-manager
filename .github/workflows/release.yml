@@ -1,44 +1,96 @@
-name: Versioned release
+name: Publish verified plugin
 on:
   push:
+    branches: [main]
     tags: ['v[0-9]*']
   workflow_dispatch:
 permissions:
   contents: read
 concurrency:
-  group: release-${{ github.ref }}
+  group: publish-${{ github.ref }}-${{ github.sha }}
   cancel-in-progress: false
 jobs:
+  version:
+    runs-on: ubuntu-24.04
+    outputs:
+      tag: ${{ steps.version.outputs.tag }}
+      previous: ${{ steps.version.outputs.previous }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - id: version
+        run: |
+          if [[ $GITHUB_REF_TYPE == tag ]]; then
+            tag=$GITHUB_REF_NAME
+          else
+            [[ $GITHUB_REF_NAME == main ]]
+            tag=$(python3 tools/release.py tag)
+          fi
+          if ! git show-ref --verify --quiet "refs/tags/$tag"; then git tag "$tag" HEAD; fi
+          previous=$(PYTHONPATH=tools python3 -c 'import sys; from pathlib import Path; from versioning import describe; print(describe(Path.cwd(), sys.argv[1]).previous or "-")' "$tag")
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "previous=$previous" >> "$GITHUB_OUTPUT"
   verify:
+    needs: version
     uses: ./.github/workflows/verify.yml
     with:
-      tag: ${{ github.ref_name }}
-  draft:
-    needs: verify
+      tag: ${{ needs.version.outputs.tag }}
+      previous: ${{ needs.version.outputs.previous }}
+  publish:
+    needs: [version, verify]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      TAG: ${{ needs.version.outputs.tag }}
+      CHANNEL: ${{ needs.verify.outputs.channel }}
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           name: gpu-switch-manager-${{ github.sha }}
-          path: dist
-      - name: Verify checksums and create the GitHub release draft
-        env:
-          GH_TOKEN: ${{ github.token }}
-          TAG: ${{ github.ref_name }}
-          CHANNEL: ${{ needs.verify.outputs.channel }}
+          path: ${{ runner.temp }}/release
+      - name: Publish the tested commit and its checked artifacts
         run: |
-          cd dist
+          cd "$RUNNER_TEMP/release"
           sha256sum -c SHA256SUMS
+          cd "$GITHUB_WORKSPACE"
+          git merge-base --is-ancestor "$GITHUB_SHA" origin/main
+          if ! git show-ref --verify --quiet "refs/tags/$TAG"; then git tag "$TAG" "$GITHUB_SHA"; fi
+          [[ $(git rev-parse "$TAG^{commit}") == "$(git rev-parse "$GITHUB_SHA^{commit}")" ]]
+          git push origin "refs/tags/$TAG"
+          cd "$RUNNER_TEMP/release"
           assets=("./gpu-switch-manager-${TAG#v}.txz" ./gpu-switch-manager.plg ./SHA256SUMS ./release.json ./RELEASE-NOTES.md)
           flags=()
-          if [[ $CHANNEL == candidate ]]; then flags+=(--prerelease); fi
+          if [[ $CHANNEL == candidate ]]; then flags+=(--prerelease --latest=false); fi
           if draft=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft 2>/dev/null); then
-            [[ $draft == true ]] || { echo "This release is already published" >&2; exit 1; }
-            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes-file RELEASE-NOTES.md
-            gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber "${assets[@]}"
+            if [[ $draft == true ]]; then
+              gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber "${assets[@]}"
+              gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false "${flags[@]}" --notes-file RELEASE-NOTES.md
+            fi
           else
-            gh release create "$TAG" --verify-tag --repo "$GITHUB_REPOSITORY" --draft "${flags[@]}" \
-              --title "GPU Switch Manager $TAG" --notes-file RELEASE-NOTES.md "${assets[@]}"
+            gh release create "$TAG" --verify-tag --repo "$GITHUB_REPOSITORY" "${flags[@]}" \
+              --title "GPU Switch Manager ${TAG#v}" --notes-file RELEASE-NOTES.md "${assets[@]}"
           fi
+          curl --fail --location --silent --show-error --retry 5 --retry-all-errors \
+            "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG/gpu-switch-manager.plg" -o "$RUNNER_TEMP/public.plg"
+          cmp gpu-switch-manager.plg "$RUNNER_TEMP/public.plg"
+      - name: Update the README and rolling install URL
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          for attempt in 1 2 3 4 5; do
+            git fetch --quiet origin main
+            git checkout --quiet --detach FETCH_HEAD
+            python3 tools/release.py promote "$RUNNER_TEMP/release" "$GITHUB_REPOSITORY" "$TAG"
+            git add README.md gpu-switch-manager.plg
+            if git diff --cached --quiet; then exit 0; fi
+            git commit -m "Update the install URL to $TAG"
+            if git push origin HEAD:refs/heads/main; then exit 0; fi
+            sleep "$attempt"
+          done
+          exit 1
