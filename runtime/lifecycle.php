@@ -110,9 +110,8 @@ final class Manager
         $configured = array_column($items, null, 'name');
         ensure(!array_diff_key($configured, $containers), 'Configured container is missing');
         $clients = $this->hw->clients($data);
-        $found = $this->hw->assignments($data, $containers, $clients);
         $candidates = array_filter($configured, fn($item) => in_array($item->policy, ['restore', 'stop'], true) && running($containers[$item->name]));
-        $stopping = array_intersect_key($candidates, $found);
+        $stopping = [];
         $candidatePids = null;
         $ownerOf = function (int $pid) use ($containers, $candidates, &$candidatePids): ?string {
             $owner = $this->hw->owner($pid, $containers);
@@ -149,7 +148,10 @@ final class Manager
                 ensure(!$other['error'], 'Cannot check clients on another GPU');
                 foreach ($this->hw->clients($other) as $pid) {
                     $owner = $ownerOf($pid);
-                    ensure($owner === null || !isset($stopping[$owner]), 'A selected container is active on another GPU at ' . $other['pci']);
+                    if ($owner !== null && isset($stopping[$owner])) {
+                        throw new Refused($owner . ' (PID ' . $pid . ') has another GPU open at ' . $other['pci']
+                            . '. Pin this container to one GPU before enabling automatic stops.');
+                    }
                 }
             }
         }
@@ -226,6 +228,7 @@ final class Manager
                     writeJson($this->s->journal($key), $journal);
                     $this->hw->run(['docker', 'stop', '--time', '15', $row->id], 22);
                     $this->checkContainer($row, false);
+                    $this->s->log($key, $vm, 'PREPARING_VM', 'Stopped container: ' . $row->name);
                 }
             }
             $data = $this->hw->verify($journal->gpu);
@@ -313,6 +316,7 @@ final class Manager
             $policies = array_column($profile->containers, null, 'name');
             $rows = array_column($journal->containers, null, 'name');
             $deadline = hrtime(true) + 90_000_000_000;
+            $restored = 0;
             foreach ($journal->containers as $row) {
                 if ($row->running && $row->attempted && $row->policy === 'restore') {
                     $container = $this->checkContainer($row);
@@ -325,10 +329,12 @@ final class Manager
                         ensure(hrtime(true) < $deadline - 30_000_000_000, 'Workload restoration timed out');
                         $this->hw->run(['docker', 'start', $row->id], 30);
                         $this->checkContainer($row, true);
+                        $restored++;
+                        $this->s->log($key, $journal->vm, 'RESTORING_HOST', 'Restarted container: ' . $row->name);
                     }
                 }
             }
-            $this->s->log($key, $journal->vm, 'HOST_AVAILABLE', 'Verified original drivers, UUID and configured restoration');
+            $this->s->log($key, $journal->vm, 'HOST_AVAILABLE', 'Verified original drivers and UUID. Containers restarted: ' . $restored);
             removeFile($this->s->journal($key));
             syncDirectory($this->s->leases);
         } catch (\Throwable $error) {
