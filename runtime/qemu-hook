@@ -5,7 +5,7 @@ case "$2/$3" in
     *) exit 0 ;;
 esac
 ctl=/usr/local/lib/gpu-switch-manager/gpuctl
-if [[ -x $ctl ]] && command -v python3 >/dev/null; then
+if [[ -x $ctl && -r ${ctl%/*}/controller.php ]] && [[ -x /usr/bin/php ]]; then
     exec "$ctl" hook "$1" "$2" "$3"
 fi
 # This file lives on the libvirt image. It still runs if boot-time plugin
@@ -13,7 +13,7 @@ fi
 if [[ $2 == release ]]; then exit 0; fi
 # The variables in the PHP fallback belong to PHP.
 # shellcheck disable=SC2016
-exec php -r '
+exec /usr/bin/php -d auto_prepend_file=none -r '
 $xml = simplexml_load_file("php://stdin", "SimpleXMLElement", LIBXML_NONET);
 if ($xml === false) exit(1);
 $cfg = json_decode(@file_get_contents("/boot/config/plugins/gpu-switch-manager/sharing.json") ?: "{}", true);

@@ -2,11 +2,11 @@
 
 Share an NVIDIA GPU between Docker and a KVM guest. When the guest starts, the plugin stops its assigned containers and libvirt takes the GPU and audio function. After shutdown, the plugin verifies the host drivers and NVIDIA UUID before restoring eligible containers. Other GPUs can be marked as protected.
 
-**Release candidate.** Automated tests use mocked hardware. Windows passthrough, post-release CUDA and five consecutive VM cycles still need hardware acceptance.
+**Release candidate.** Automated tests use mocked hardware. Live WebGUI, Windows passthrough, post-release CUDA and five consecutive VM cycles still need acceptance.
 
 ## Install
 
-In Unraid, open **Plugins → Install Plugin**, paste this URL and select **Install**:
+For the current repository build, install the verified local manifest using the commands under [Build and release](#build-and-release). For published candidates, open **Plugins → Install Plugin** and use the candidate channel.
 
 <!-- latest-install:begin -->
 ```text
@@ -16,11 +16,13 @@ https://raw.githubusercontent.com/bigsalm0n/unraid-gpu-switch-manager/main/gpu-s
 Current build **2026.11.27-rc.2** · [Release notes](https://github.com/bigsalm0n/unraid-gpu-switch-manager/releases/tag/v2026.11.27-rc.2) · [Version-pinned installer](https://github.com/bigsalm0n/unraid-gpu-switch-manager/releases/download/v2026.11.27-rc.2/gpu-switch-manager.plg)
 <!-- latest-install:end -->
 
-The URL tracks the latest verified build, including release candidates. The manifest embeds the package and checks its SHA-256 during installation.
+The candidate channel advances after CI publishes and verifies a tagged release. The stable channel is `https://github.com/bigsalm0n/unraid-gpu-switch-manager/releases/latest/download/gpu-switch-manager.plg` once a stable release is published. Installed plugins use their manifest's channel when you select **Plugins → Check for Updates**. Stable releases have the highest version suffix for their date. The manifest embeds the package for offline installation and verifies its SHA-256 before extraction.
 
 If the May plugin is installed, back up its configuration and follow the migration steps first. Its uninstaller deletes saved settings. [May upgrade procedure](docs/AUDIT.md#upgrading-from-the-may-plugin)
 
-The host needs Python 3.9+ at plugin-install time on every boot, PHP 8+ with SimpleXML, Docker, pciutils, libvirt 6.5+ and IOMMU. Shared GPUs need the NVIDIA host driver and `nvidia-smi`. Start the array and VM Manager for first setup. Keep the shared VM's autostart disabled until these checks and its dry run pass.
+The runtime uses Unraid's PHP 8.1+ CLI with SimpleXML, DOM and POSIX, Bash, Docker, pciutils and libvirt 6.5+. It installs without Python. Shared GPUs need IOMMU, the NVIDIA host driver and `nvidia-smi`. Start the array and VM Manager for first setup. Keep the shared VM's autostart disabled until its dry run and the hook probe pass.
+
+To upgrade version `2026.11.27.0004`, finish any shared-GPU transaction, leave VM Manager enabled, and back up `/boot/config/plugins/gpu-switch-manager/sharing.json`. Install over the existing version. The installer keeps GPU identities and VM profiles, replaces the plugin-owned hook, and removes checksum-verified files belonging to the old bundled Python. A transition, outstanding journal, modified plugin file or shared PCI function still bound to VFIO aborts the upgrade.
 
 ```sh
 ctl=/usr/local/lib/gpu-switch-manager/gpuctl
@@ -32,10 +34,10 @@ The probe asks libvirt to create a diskless, hardware-free paused domain and ver
 
 ## Configure sharing
 
-1. Open **Settings → GPU Switch Manager**. Discover GPUs, enroll dedicated devices as protected, and enroll the gaming GPU as shared.
-2. Choose the VM, GPU and containers. Each container can be left running, stopped only, or stopped and restored. Set dependencies by name and save the profile. A running all-GPU container needs an explicit policy. Use NVIDIA UUIDs where possible.
+1. Open **Settings → GPU Switch Manager**. Enroll dedicated devices as protected and the gaming GPU as shared. A GPU without an enrollment is unmanaged.
+2. Choose the VM, GPU and containers. Each container can be left running, stopped only, or stopped and restored. Set dependencies by name and save the profile. The dry run shows which running containers the plan would stop. A running all-GPU container needs an explicit policy. Use NVIDIA UUIDs where possible.
 3. With the VM shut off, back up its XML and select **Add managed devices to VM**. Each profile supports one complete graphics slot and its audio functions. Review conflicting PCI assignments in the Unraid VM editor.
-4. Run **Dry run**, then **Enable automatic switching**. Start and shut down the guest through the normal VM Manager. The dashboard shows the ownership journal and any restoration errors.
+4. Run **Validate and dry run**. Use **Start VM** for a manual transition. For standard Unraid VM Manager starts, enable automatic switching globally and select **Switch when started from VM Manager** in the profile. The dashboard shows ownership, transition state and restoration errors.
 
 After a motherboard change, rediscover the GPU by UUID, compare subsystem IDs and sibling functions, then explicitly re-enroll its BDF and update the powered-off VM definition.
 
@@ -54,8 +56,14 @@ python3 tools/build.py
 (cd dist && sha256sum -c SHA256SUMS)
 ```
 
-Build from a Git checkout with full tag history. On Windows use `py -3 tools/build.py`. The output includes the installer, package, checksums, generated notes and source revision. To install offline, copy the verified manifest to `/tmp/gpu-switch-manager.plg` and run `plugin install /tmp/gpu-switch-manager.plg`.
+Build from a Git checkout with full tag history. On Windows use `py -3 tools/build.py`. For a candidate, check out its tag before building. An untagged build uses a development version and is unsuitable for testing native upgrade ordering.
 
-Each push to `main` creates a candidate after Linux tests and a byte-for-byte Windows rebuild. Actions publishes the date-based tag, verifies its public installer, and updates the URL and version shown above. A `vYYYY.MM.DD` tag promotes an accepted revision to stable. Release notes come from Git history.
+Copy the verified `dist/gpu-switch-manager.plg` to `/tmp/gpu-switch-manager.plg` on the test server and run as root.
+
+```bash
+plugin install /tmp/gpu-switch-manager.plg
+```
+
+A pushed `vYYYY.MM.DD-rc.N` tag publishes a candidate after Linux tests and a byte-for-byte Windows rebuild. A pushed `vYYYY.MM.DD` tag publishes an accepted revision on the stable channel. Both use Git-generated release notes. Verify hardware acceptance and redistribution rights before pushing a stable release tag.
 
 The technical references cover [ownership and lifecycle](docs/ARCHITECTURE.md), [the legacy audit and redistribution status](docs/AUDIT.md), and [automated tests and hardware acceptance](docs/TESTING.md).

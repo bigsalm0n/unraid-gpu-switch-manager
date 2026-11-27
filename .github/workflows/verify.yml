@@ -2,7 +2,7 @@ name: Test and build
 on:
   pull_request:
   push:
-    branches-ignore: [main]
+    branches: ['**']
   workflow_dispatch:
   workflow_call:
     inputs:
