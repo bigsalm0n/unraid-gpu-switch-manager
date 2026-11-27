@@ -64,9 +64,13 @@ final class Manager
             array_keys((array)$journal->gpu->functions));
         $drivers = (array)($journal->drivers ?? null);
         ensure(count($drivers) === count($expected) && !array_diff($expected, array_keys($drivers)), 'Invalid journal PCI functions');
-        foreach ($drivers as $driver) {
-            ensure(is_string($driver) && $driver !== '' && $driver !== 'vfio-pci', 'Invalid original drivers');
+        foreach ($drivers as $address => $driver) {
+            $function = substr($address, -1);
+            $unboundAudio = $driver === null && $address !== $journal->gpu->pci
+                && str_starts_with($journal->gpu->functions->$function, '0403');
+            ensure($unboundAudio || (is_string($driver) && $driver !== '' && $driver !== 'vfio-pci'), 'Invalid original drivers');
         }
+        ensure($drivers[$journal->gpu->pci] === 'nvidia', 'Invalid original graphics driver');
         ensure(in_array($journal->state ?? null, ['PREPARING_VM', 'VFIO_BOUND', 'VM_ACTIVE', 'RESTORING_HOST', 'ERROR'], true),
             'Invalid journal state');
         $items = ordered($cfg->profiles->{$journal->vm}->containers);
@@ -212,6 +216,7 @@ final class Manager
                 }
             }
             $data = $this->hw->verify($journal->gpu);
+            ensure(same((object)$data['drivers'], $journal->drivers), 'Host PCI bindings changed during preparation');
             ensure(!$this->hw->clients($data), 'Target device handles remain open');
             $this->checkArray();
             $this->s->log($key, $vm, 'PREPARING_VM', 'Target idle; allowing managed PCI assignment');

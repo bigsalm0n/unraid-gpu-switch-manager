@@ -12,6 +12,7 @@ class Element {
         this.value = "";
     }
 
+    add(element) { this.append(element); }
     append(...elements) { this.children.push(...elements); }
     prepend(...elements) { this.children.unshift(...elements); }
     replaceChildren(...elements) { this.children = elements; }
@@ -37,7 +38,9 @@ function fixture(responses, token = 'token with + & =') {
         document: {getElementById: id => elements[id], createElement: () => new Element()},
         Option: class { constructor(text, value) { this.text = text; this.value = value; } },
         URLSearchParams,
+        window: {confirm: () => true},
         setTimeout() {},
+        clearTimeout() {},
         fetch(url, request) {
             calls.push({url, request});
             return Promise.resolve(responses.shift());
@@ -96,4 +99,25 @@ test("authentication, CSRF, generic HTTP, backend and missing page token errors 
     await tick();
     assert.match(elements["gsm-message"].textContent, /did not provide a request token/);
     assert.equal(calls.length, 0);
+});
+
+test("loads a saved VM profile and displays a refused start beside the controls", async () => {
+    const payload = {
+        devices: [], vms: ["Another VM", "Gaming"], containers: ["voice"], errors: [],
+        config: {gpus: {game: {protected: false}}, enabled: true,
+            profiles: {Gaming: {gpu: "game", automatic: false, containers: [{name: "voice", policy: "restore", after: []}]}}}
+    };
+    const refusal = "PCI function 0000:05:00.1 is already bound to VFIO.";
+    const {elements, calls} = fixture([response(200, payload), response(200, {}), response(409, {error: refusal})]);
+    await tick();
+    elements["gsm-saved-profile"].value = "Gaming";
+    elements["gsm-saved-profile"].onchange();
+    await elements["gsm-load-profile"].click();
+    assert.equal(elements["gsm-vm"].value, "Gaming");
+    assert.equal(elements["gsm-gpu"].value, "game");
+    assert.equal(elements["gsm-automatic"].checked, false);
+    assert.equal(elements["gsm-workloads"].children[0].tBodies[0].children[0].children[1].children[0].value, "restore");
+    await elements["gsm-start"].click();
+    assert.equal(calls[2].request.body.get("vm"), "Gaming");
+    assert.equal(elements["gsm-vm-message"].textContent, refusal);
 });
