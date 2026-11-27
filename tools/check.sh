@@ -1,10 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
-for file in runtime/qemu-hook ui/event/* tools/check.sh; do
+for file in runtime/qemu-hook runtime/python-env ui/event/* packaging/gpuctl packaging/{install,remove}.sh tools/check{,-python-bootstrap}.sh; do
     bash -n "$file"
-    shellcheck "$file"
+    shellcheck -x "$file"
 done
+bash tools/check-python-bootstrap.sh
 for file in ui/api.php ui/dashboard.inc ui/GPUSwitchManager.page; do php -l "$file"; done
 node --check ui/dashboard.js
 python3 -B -m unittest discover -s tests -v

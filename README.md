@@ -20,7 +20,7 @@ The URL tracks the latest verified build, including release candidates. The mani
 
 If the May plugin is installed, back up its configuration and follow the migration steps first. Its uninstaller deletes saved settings. [May upgrade procedure](docs/AUDIT.md#upgrading-from-the-may-plugin)
 
-The host needs Python 3.9+ at plugin-install time on every boot, PHP 8+ with SimpleXML, Docker, pciutils, libvirt 6.5+ and IOMMU. Shared GPUs need the NVIDIA host driver and `nvidia-smi`. Start the array and VM Manager for first setup. Keep the shared VM's autostart disabled until these checks and its dry run pass.
+The host needs PHP 8+ with SimpleXML, Docker, pciutils, libvirt 6.5+ and IOMMU. The installer uses host Python 3.9+ if available. On x86-64 hosts without it, the installer downloads and verifies a private CPython runtime and caches the archive on the flash drive for offline reboots. Shared GPUs need the NVIDIA host driver and `nvidia-smi`. Start the array and VM Manager for first setup. Keep the shared VM's autostart disabled until these checks and its dry run pass.
 
 ```sh
 ctl=/usr/local/lib/gpu-switch-manager/gpuctl
@@ -54,7 +54,7 @@ python3 tools/build.py
 (cd dist && sha256sum -c SHA256SUMS)
 ```
 
-Build from a Git checkout with full tag history. On Windows use `py -3 tools/build.py`. The output includes the installer, package, checksums, generated notes and source revision. To install offline, copy the verified manifest to `/tmp/gpu-switch-manager.plg` and run `plugin install /tmp/gpu-switch-manager.plg`.
+Build from a Git checkout with full tag history. On Windows use `py -3 tools/build.py`. The output includes the installer, package, checksums, generated notes and source revision. To install offline, copy the verified manifest to `/tmp/gpu-switch-manager.plg` and run `plugin install /tmp/gpu-switch-manager.plg`. If the host lacks Python 3.9+, also copy the pinned Python archive from [the upstream release](https://github.com/astral-sh/python-build-standalone/releases/tag/20261124) to `/boot/config/plugins/gpu-switch-manager/` as `python-runtime.tar.gz`. The source filename and SHA-256 are pinned in `packaging/install.sh`.
 
 Each push to `main` creates a candidate after Linux tests and a byte-for-byte Windows rebuild. Actions publishes the date-based tag, verifies its public installer, and updates the URL and version shown above. A `vYYYY.MM.DD` tag promotes an accepted revision to stable. Release notes come from Git history.
 

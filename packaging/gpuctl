@@ -1,0 +1,10 @@
+#!/bin/bash
+set -eu
+lib=$(dirname "$0")
+# shellcheck source=runtime/python-env
+source "$lib/python-env"
+if ! select_python "$lib"; then
+    echo "GPU Switch Manager requires Python 3.9+; inspect the plugin installation." >&2
+    exit 1
+fi
+exec "$python" -EB "$lib/gpuctl.py" "$@"

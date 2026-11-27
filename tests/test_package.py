@@ -60,7 +60,7 @@ class Package(unittest.TestCase):
         self.assertEqual(raw, next(other.glob("*.txz")).read_bytes())
         for f in root.findall("FILE[@Run]"):
             subprocess.run(["bash", "-n"], input=f.findtext("INLINE"), text=True, check=True)
-            subprocess.run(["shellcheck", "-s", "bash", "-"], input=f.findtext("INLINE"), text=True, check=True)
+            subprocess.run(["shellcheck", "-x", "-s", "bash", "-"], input=f.findtext("INLINE"), text=True, check=True)
         self.assertTrue(os.access(self.stage / LIB / "gpuctl", os.X_OK))
 
     def test_manifest_rejects_a_corrupt_cached_package_before_install(self):
@@ -71,7 +71,7 @@ class Package(unittest.TestCase):
         script = manifest.find("FILE[@Run]").findtext("INLINE").replace(data.get("Name"), str(cache))
         marker = self.root / "install-called"
         shim = self.root / "python3"
-        shim.write_text('#!/bin/bash\nif [[ $1 == -B ]]; then test -r "$2" && test "$3" = install && touch "$MARKER"; fi\n')
+        shim.write_text('#!/bin/bash\nif [[ $1 == -EB ]]; then test -r "$2" && test "$3" = install && touch "$MARKER"; fi\n')
         shim.chmod(0o755)
         env = dict(os.environ, PATH=str(self.root) + ":" + os.environ["PATH"], MARKER=str(marker))
         for intact in (True, False):
@@ -132,7 +132,7 @@ class Package(unittest.TestCase):
         self.apply()
         cfg = self.root / "missing-runtime.json"
         write(cfg, {"profiles": {"Windows": {"gpu": "game"}}})
-        wrapper = (self.root / HOOK).read_text().replace("/usr/local/lib/gpu-switch-manager/gpuctl", str(self.root / "missing-ctl"))
+        wrapper = (self.root / HOOK).read_text().replace("/usr/local/lib/gpu-switch-manager", str(self.root / "missing-runtime"))
         wrapper = wrapper.replace("/boot/config/plugins/gpu-switch-manager/sharing.json", str(cfg))
         (self.root / HOOK).write_text(wrapper)
         for name, expected in (("Windows", 1), ("Control guest", 0)):
