@@ -83,6 +83,24 @@ class VersionedBuild(unittest.TestCase):
         self.assertLess(versions(first)[1], versions(second)[1])
         self.assertEqual(second, candidate(self.repo))
 
+    def test_notes_use_previous_candidate_on_a_merged_branch(self):
+        main = self.git("branch", "--show-current").strip()
+        self.git("checkout", "-qb", "fix")
+        self.commit("Ship the previous candidate")
+        self.git("tag", "v2026.11.27-rc.6")
+        self.git("checkout", "-q", main)
+        self.git("merge", "-q", "--no-ff", "fix", "-m", "Merge previous candidate")
+        (self.repo / "gpu-switch-manager.plg").write_text("Published payload")
+        self.git("add", "gpu-switch-manager.plg")
+        self.git("commit", "-qm", "Update rolling installer")
+        self.commit("Fix upgrade rollback")
+        self.git("tag", "v2026.11.27-rc.8")
+        release = describe(self.repo)
+        self.assertEqual(release.previous, "v2026.11.27-rc.6")
+        self.assertIn("Fix upgrade rollback", release.notes)
+        self.assertNotIn("Ship the previous candidate", release.notes)
+        self.assertNotIn("Update rolling installer", release.notes)
+
     def test_main_candidate_advances_past_manual_tag_on_a_merged_branch(self):
         main = self.git("branch", "--show-current").strip()
         self.git("checkout", "-qb", "fix")
