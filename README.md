@@ -1,313 +1,51 @@
-# GPU Switch Manager for Unraid
+# Unraid GPU Switch Manager
 
-Automated GPU driver switching for VM passthrough and Docker workloads.
+Share an NVIDIA GPU between Docker and a KVM guest. When the guest starts, the plugin stops its assigned containers and libvirt takes the GPU and audio function. After shutdown, the plugin verifies the host drivers and NVIDIA UUID before restoring eligible containers. Other GPUs can be marked as protected.
 
-## Overview
+**Release candidate.** Automated tests use mocked hardware. Windows passthrough, post-release CUDA and five consecutive VM cycles still need hardware acceptance.
 
-GPU Switch Manager provides a centralized interface to toggle GPU drivers and assignments on Unraid. It automates the process of binding/unbinding GPUs to vfio-pci for VM passthrough or ensuring they are available for Docker-based AI and transcoding workflows.
+## Install
 
-## Features
+In the Unraid WebGUI, open **Plugins → Install Plugin**, paste the direct URL ending in `/gpu-switch-manager.plg`, and select **Install**. The manifest embeds its checksummed package. A release candidate uses the download URL for its specific tag. Stable releases use the **latest release** download URL. For a private build, an HTTPS server reachable by Unraid can serve the same file.
 
-- **Automated VFIO Binding**: Toggle GPUs between host/Docker use and VM isolation without manual XML editing
-- **Service Dependency Management**: Automatically stop/start affected Docker containers and VMs during driver handovers
-- **Web Interface**: Configure GPU containers, CPU replacement containers, and ignored containers
-- **Real-time Status Dashboard**: Display current GPU utilization, temperature, and driver assignment
-- **Persistent Configuration**: Save preferred profiles that persist across system reboots
-- **Event-Driven Operation**: Automatic GPU switching when starting/stopping VMs
+If the May plugin is installed, back up its configuration and follow the migration steps first. Its uninstaller deletes saved settings. [May upgrade procedure](docs/AUDIT.md#upgrading-from-the-may-plugin)
 
-## Installation
+The host needs Python 3.9+ at plugin-install time on every boot, PHP 8+ with SimpleXML, Docker, pciutils, libvirt 6.5+ and IOMMU. Shared GPUs need the NVIDIA host driver and `nvidia-smi`. Start the array and VM Manager for first setup. Keep the shared VM's autostart disabled until these checks and its dry run pass.
 
-### Method 1: Unraid Plugins Tab (Requires GitHub)
-
-**Note:** This method requires the plugin to be hosted on GitHub. See "Building from Source" section below.
-
-1. Go to Settings → Plugins in Unraid web interface
-2. Click "Install Plugin"
-3. Paste the plugin URL: `https://github.com/thewolfman56/unraid-gpu-switch-manager/raw/main/gpu-switch-manager.plg`
-4. Click "Install"
-
-### Method 2: Manual Installation (Recommended for Testing)
-
-1. Download the plugin package: `gpu-switch-manager-2026.05.05.txz`
-2. Upload to your Unraid server via SCP:
-   ```bash
-   scp gpu-switch-manager-2026.05.05.txz root@[server-ip]:/tmp/
-   ```
-3. SSH into your Unraid server:
-   ```bash
-   ssh root@[server-ip]
-   ```
-4. Extract and install:
-   ```bash
-   cd /tmp
-   tar -xzf gpu-switch-manager-2026.05.05.txz
-   cd gpu-switch-manager
-   chmod +x install.sh
-   ./install.sh
-   ```
-
-### Method 3: Direct File Copy
-
-1. Download the complete source code from GitHub
-2. Copy all files to your Unraid server:
-   ```bash
-   scp -r * root@[server-ip]:/tmp/gpu-switch-manager/
-   ```
-3. SSH into your Unraid server and run:
-   ```bash
-   ssh root@[server-ip]
-   cd /tmp/gpu-switch-manager
-   chmod +x install.sh
-   ./install.sh
-   ```
-
-## Configuration
-
-### Initial Setup
-
-1. Navigate to Settings → GPU Switch Manager
-   - Or access directly: `http://[server-ip]/settings/gpu-switch-manager`
-2. Click "Open Dashboard" to access the main interface
-3. Click "Scan for GPUs" to detect available GPUs
-4. Create profiles for each GPU you want to manage
-5. Configure Docker containers and VMs for each profile
-
-### Profile Configuration
-
-Each GPU profile includes:
-- **GPU Identification**: PCI address, model, vendor
-- **VM Assignment**: Which VM uses this GPU
-- **Docker Containers**: GPU containers to stop/start
-- **CPU Replacements**: CPU-only containers to run when GPU is unavailable
-- **Ignored Containers**: Containers not affected by GPU switching
-
-### Safety Settings
-
-- **Protect Primary GPU**: Prevents switching the primary display GPU
-- **Require Confirmation**: Prompts before critical operations
-- **Backup Configuration**: Automatically backs up configuration changes
-
-## Usage
-
-### Starting a VM with GPU Passthrough
-
-1. Ensure VM is configured with GPU profile
-2. Start the VM normally
-3. Plugin automatically:
-   - Saves running Docker container states
-   - Stops GPU containers
-   - Starts CPU replacement containers (if configured)
-   - Binds GPU to vfio-pci
-   - Verifies binding success
-   - Starts the VM
-
-### Stopping a VM
-
-1. Stop the VM normally
-2. Plugin automatically:
-   - Unbinds GPU from vfio-pci
-   - Verifies GPU release
-   - Stops CPU replacement containers
-   - Restores GPU containers
-   - Restores container states
-
-### Manual GPU Switching
-
-You can manually switch GPU binding via:
-- Web Interface: Settings → GPU Switch Manager → Open Dashboard → Manual Control
-- Command Line: `/usr/local/emhttp/plugins/gpu-switch-manager/scripts/bind_gpu_to_vfio.sh [pci-address]`
-- Settings Page: `http://[server-ip]/settings/gpu-switch-manager`
-
-## Dashboard Widget
-
-The plugin adds a widget to the Unraid dashboard showing:
-- Real-time GPU utilization
-- Temperature readings
-- Current driver assignment
-- Active profile status
-- Quick actions for common operations
-
-## Settings Integration
-
-The plugin integrates with Unraid's Settings page:
-
-- **Icon**: Appears in User Utilities section of Settings
-- **Settings Page**: `http://[server-ip]/settings/gpu-switch-manager`
-- **Quick Access**: Direct links to main interface sections
-- **Status Display**: Shows plugin installation status and configuration
-
-### Settings Page Features
-
-- Plugin status and version information
-- Quick action buttons for common tasks
-- Configuration overview
-- Links to documentation and support
-
-## Troubleshooting
-
-### GPU Not Detected
-
-- Check that GPU is properly seated and recognized by Unraid
-- Verify `lspci` shows the GPU device
-- Check that appropriate drivers are installed
-
-### VFIO Binding Fails
-
-- Ensure GPU is not in use by any process
-- Check that no VMs are using the GPU
-- Verify `/etc/modprobe.d/vfio.conf` is writable
-- Check system logs: `/var/log/gpu.switch.manager.log`
-
-### Docker Container Issues
-
-- Verify container names match profile configuration
-- Check that containers are properly labeled
-- Ensure Docker service is running
-- Review container logs for specific errors
-
-### VM Start Failures
-
-- Check VM XML configuration for GPU assignment
-- Verify GPU is properly bound to vfio-pci
-- Check that GPU audio function is also bound (if applicable)
-- Review libvirt logs: `/var/log/libvirt/qemu/`
-
-## Advanced Configuration
-
-### Custom Timeout Settings
-
-Edit `/boot/config/plugins/gpu-switch-manager/gpu.switch.manager.cfg`:
-
-```ini
-TIMEOUT_SECONDS=60
-VERIFY_BINDING=true
+```sh
+ctl=/usr/local/lib/gpu-switch-manager/gpuctl
+"$ctl" discover
+"$ctl" probe
 ```
 
-### Debug Mode
+The probe asks libvirt to create a diskless, hardware-free paused domain and verifies that the plugin vetoes it. If the hook is inactive and the probe starts, the CLI destroys that probe UUID and reports failure.
 
-Enable debug logging:
+## Configure sharing
 
-```ini
-DEBUG=true
-LOG_LEVEL=debug
+1. Open **Settings → GPU Switch Manager**. Discover GPUs, enroll dedicated devices as protected, and enroll the gaming GPU as shared.
+2. Choose the VM, GPU and containers. Each container can be left running, stopped only, or stopped and restored. Set dependencies by name and save the profile. A running all-GPU container needs an explicit policy. Use NVIDIA UUIDs where possible.
+3. With the VM shut off, back up its XML and select **Add managed devices to VM**. Each profile supports one complete graphics slot and its audio functions. Review conflicting PCI assignments in the Unraid VM editor.
+4. Run **Dry run**, then **Enable automatic switching**. Start and shut down the guest through the normal VM Manager. The dashboard shows the ownership journal and any restoration errors.
+
+After a motherboard change, rediscover the GPU by UUID, compare subsystem IDs and sibling functions, then explicitly re-enroll its BDF and update the powered-off VM definition.
+
+## Recovery and removal
+
+Run `gpuctl diagnostics` and `gpuctl logs` using the CLI path above. Retain the transaction under `/boot/config/plugins/gpu-switch-manager/transactions/`. Check the owner with `virsh list --all`, both functions with `lspci -Dnnk -s ADDRESS`, and the shared UUID with `nvidia-smi -i UUID`. When the guest is off and the host drivers and userspace are healthy, run `gpuctl recover KEY` with the enrolled GPU key. A replaced container or corrupt journal requires operator review.
+
+If a function remains on VFIO, preserve the journal and inspect kernel and libvirt logs before scheduling driver recovery. Global NVIDIA module reloads and bus resets can disrupt other workloads.
+
+To roll back, finish outstanding transactions, disable automatic switching, and shut down the affected VM. Restore its saved definition with `virsh define --validate /path/to/saved.xml`. Remove the plugin with `plugin remove gpu-switch-manager.plg` while the libvirt image is mounted. Removal retains the flash configuration. Archive and verify that directory before deleting it if retiring the plugin.
+
+## Build and release
+
+```sh
+python3 tools/build.py
+(cd dist && sha256sum -c SHA256SUMS)
 ```
 
-### Manual VFIO Configuration
+Build from a Git checkout with full tag history. On Windows use `py -3 tools/build.py`. The output includes the installer, package, checksums, generated notes and source revision. To install offline, copy the verified manifest to `/tmp/gpu-switch-manager.plg` and run `plugin install /tmp/gpu-switch-manager.plg`.
 
-For advanced users, you can manually edit `/etc/modprobe.d/vfio.conf`:
+Tags use `vYYYY.MM.DD-rc.N` and `vYYYY.MM.DD`. GitHub Actions tests the Linux build, compares the Windows artifacts byte for byte and creates a release draft. Publish the release to make its download URL available. Release notes come from Git history.
 
-```bash
-options vfio-pci ids=10de:2204,10de:2205
-```
-
-## File Locations
-
-- **Plugin Files**: `/usr/local/emhttp/plugins/gpu-switch-manager/`
-- **Web Interface**: `/usr/local/emhttp/webplugins/gpu-switch-manager/`
-- **Settings Page**: `/usr/local/emhttp/websettings/gpu-switch-manager.php`
-- **Configuration**: `/boot/config/plugins/gpu-switch-manager/`
-- **Logs**: `/var/log/gpu.switch.manager.log`
-- **State**: `/boot/config/plugins/gpu-switch-manager/state.json`
-
-## System Requirements
-
-- Unraid 6.12.0 or higher
-- Compatible GPU (NVIDIA, AMD, or Intel)
-- Sufficient system resources for concurrent operations
-- Docker and VM services enabled (if using those features)
-
-## Security Considerations
-
-- Plugin runs as root - ensure system is properly secured
-- Validate all user inputs before processing
-- Keep plugin updated for security patches
-- Review configuration changes before applying
-- Monitor logs for suspicious activity
-
-## Performance Impact
-
-- Minimal overhead during normal operation
-- Brief pause during GPU switching (typically 5-30 seconds)
-- Dashboard widget refreshes every 5 seconds (configurable)
-- Logging enabled by default (can be disabled)
-
-## Compatibility
-
-### GPU Support
-
-- **NVIDIA**: Most modern NVIDIA GPUs (GeForce, Quadro, Tesla)
-- **AMD**: Most modern AMD GPUs (Radeon, Instinct)
-- **Intel**: Intel integrated graphics and discrete GPUs
-
-### Unraid Versions
-
-- **Tested**: Unraid 6.12.0, 6.12.1, 6.12.2
-- **Compatible**: Unraid 6.12.x and 7.x
-- **Legacy**: May work with older versions but not officially supported
-
-## Development
-
-### Building from Source
-
-```bash
-# Clone repository
-git clone https://github.com/thewolfman56/unraid-gpu-switch-manager.git
-cd unraid-gpu-switch-manager
-
-# Create package
-tar -czf gpu-switch-manager-2026.05.05.txz gpu-switch-manager.plg install.sh remove.sh gpu-switch-manager.php assets/ include/ scripts/ web/ settings/ event/ javascript/ styles/ templates/ gpu.switch.manager.cfg profiles.json state.json README.md SECURITY-HARDENING-SUMMARY.md SECURITY-TEST-REPORT.md
-
-# Calculate MD5
-md5sum gpu-switch-manager-2026.05.05.txz
-```
-
-### Contributing
-
-Contributions are welcome! Please:
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Submit a pull request
-
-## Support
-
-- **Issues**: https://github.com/thewolfman56/unraid-gpu-switch-manager/issues
-- **Forums**: https://forums.unraid.net/
-- **Documentation**: https://github.com/thewolfman56/unraid-gpu-switch-manager/wiki
-
-## License
-
-This plugin is provided as-is for use with Unraid systems. Please refer to the individual license files for specific components.
-
-## Changelog
-
-### Version 2026.05.05
-- Initial release
-- Complete plugin foundation with all phases (0-6)
-- Unraid Settings page integration
-- Web interface with GPU management
-- Profile management system
-- Event-driven GPU switching
-- Docker and VM service coordination
-- Security hardening (100% test pass rate)
-- Comprehensive documentation
-
-### Security Features
-- Authentication with secure password hashing
-- Role-based access control (admin, user, readonly)
-- CSRF protection with token rotation
-- Rate limiting on all endpoints
-- Input validation and sanitization
-- Path traversal prevention
-- Secure file operations
-- Security headers (CSP, X-Frame-Options, HSTS)
-- Secure error handling with role-based messages
-- Password strength validation and history tracking
-
-## Credits
-
-Developed for the Unraid community to simplify GPU passthrough workflows.
-
-## Disclaimer
-
-This plugin modifies system-level GPU bindings. Use at your own risk. Always backup your configuration before making changes. The authors are not responsible for data loss or system instability.
+The technical references cover [ownership and lifecycle](docs/ARCHITECTURE.md), [the legacy audit and redistribution status](docs/AUDIT.md), and [automated tests and hardware acceptance](docs/TESTING.md).

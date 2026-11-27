@@ -1,0 +1,39 @@
+#!/bin/bash
+set -eu
+case "$2/$3" in
+    prepare/begin|start/begin|started/begin|release/end) ;;
+    *) exit 0 ;;
+esac
+ctl=/usr/local/lib/gpu-switch-manager/gpuctl
+if [[ -x $ctl ]] && command -v python3 >/dev/null; then
+    exec "$ctl" hook "$1" "$2" "$3"
+fi
+# This file lives on the libvirt image. It still runs if boot-time plugin
+# installation failed. Preserve pending journals and allow unrelated guests.
+if [[ $2 == release ]]; then exit 0; fi
+# The variables in the PHP fallback belong to PHP.
+# shellcheck disable=SC2016
+exec php -r '
+$xml = simplexml_load_file("php://stdin", "SimpleXMLElement", LIBXML_NONET);
+if ($xml === false) exit(1);
+$cfg = json_decode(@file_get_contents("/boot/config/plugins/gpu-switch-manager/sharing.json") ?: "{}", true);
+$affected = isset($cfg["profiles"][$argv[1]]);
+foreach ($xml->xpath("/domain/devices/hostdev[@type=\"pci\"]/source/address | /domain/devices/interface[@type=\"hostdev\"]/source/address") as $a) {
+    $bdf = sprintf("%04x:%02x:%02x.%x", hexdec($a["domain"]), hexdec($a["bus"]), hexdec($a["slot"]), hexdec($a["function"]));
+    $device = "/sys/bus/pci/devices/$bdf";
+    $members = glob("$device/iommu_group/devices/*") ?: [$device];
+    foreach ($members as $member) {
+        $slot = substr(basename($member), 0, -1);
+        foreach ($cfg["gpus"] ?? [] as $gpu) {
+            if (substr($gpu["pci"], 0, -1) === $slot) $affected = true;
+        }
+        foreach (glob("/sys/bus/pci/devices/".$slot."?/class") ?: [] as $class) {
+            if (str_starts_with(trim(file_get_contents($class)), "0x03")) $affected = true;
+        }
+    }
+}
+if ($affected) {
+    fwrite(STDERR, "GPU Switch Manager runtime unavailable; inspect plugin installation before VM startup.\n");
+    exit(1);
+}
+' -- "$1"

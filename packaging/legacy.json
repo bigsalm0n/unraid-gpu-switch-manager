@@ -1,0 +1,321 @@
+{
+  "usr/local/emhttp/plugins/gpu-switch-manager/GPUSwitchManager.page": [
+    "05cc99380536e4b1dadb100af46e6029a7c9024a4788f6c4e023f10c28ed4c9a",
+    "e74cd3ee37bb05e6fd31e8d564973af7705bc1cfbe36231d7c33e6012785a047"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/README.md": [
+    "8d42efcfb59b3496eb12b8d79a3a4ede31741dbe93cbbb7d8ed91de0a0c4293c"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/assets/banner.png": [
+    "cf17a61ae86a841ebba9967a569881c6e56c53342bc23d80f0aa9955b7d6d50a"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/assets/icon.png": [
+    "0ca7575cbdf1ecf8c84f1084bfa5f8a459660b125d9254e2db422945de225265"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/default.cfg": [
+    "15f0e3cc03dee2a2c399bae3607200f2f80f4f4888d023708dbe192ef86777b7"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/event/coordinate_services_for_event.sh": [
+    "6db9c73b03a0bd7762a58c0a05afc8d6ae216e5aef601ea1949fbcfaf8978855"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/event/docker_event_monitor.sh": [
+    "f9a37d5c22ca4762d347d742c9691c1046927bd9a3ec84187079418df1e86fd2"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/event/event_logger.sh": [
+    "5a93d2165b8147bdb88787fe6d4b46b73ce4cb6b1de72ad60c5eee755c593839"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/event/register_event_handlers.sh": [
+    "26ad784694f0a252e64ad681068fb495734e8f2d2fa1ecf3135ef05723f5d420"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/event/unraid_event_handler.sh": [
+    "4d1feb97a674fbd82ed1092b02ec3633b05a84cb2bef24d62152cca9a3104c8b"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/event/unregister_event_handlers.sh": [
+    "e4f1ec6c817bf2e4e12e5f5a5466efe03e68a263f5b017209593a20c1ced3d23"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/event_handlers/filter.conf": [
+    "26ca0f8aa50c1b2155fd06e7a7500eacd95f0342512b8d19b88571b1dfa5422a"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/event_handlers/priority.conf": [
+    "18e4f27ab2c45fbe22d96c11b5b9b2d8142b9396172e3a8e0196ec35d55c1245"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/gpu-switch-manager.php": [
+    "14fbc6d77709b4c3b0291c9bbbeba2da3270311dd276bd13b87f9bd7f67476e7"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/hooks/vm_start.sh": [
+    "365e81cefd3aebdb19c6d36c0f0261cdc7a1b331bf626f7e5481b4adcdb7ceb4"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/hooks/vm_stop.sh": [
+    "eb1e6fdd43d23297de963de732c2ac3841da8bc3eed82fd953f1213154c938c8"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/icon.png": [
+    "0ca7575cbdf1ecf8c84f1084bfa5f8a459660b125d9254e2db422945de225265"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/icons/icon.png": [
+    "0ca7575cbdf1ecf8c84f1084bfa5f8a459660b125d9254e2db422945de225265"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/include/APIHandler.php": [
+    "0ba79dfb382f148b44a029915442caf52c69e7af26be78b35444906eaaf273c4"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/include/AuthenticationService.php": [
+    "fb4015461adeb5eb16c8146c55bab4412376474c9c0e33a3f7fe718cb92755df"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/include/AuthorizationService.php": [
+    "c68d091eccbff9f6f7786bf1f37d561dfab442d0ce176a77a5e00d6f8164a137"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/include/BackupsController.php": [
+    "ef18fcd96f153cddac54a4b0a88dbfcf007da2e23047c8f98c3420a3a4a1cbb3"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/include/ConfigBackup.php": [
+    "36ca1ffccca73b29320358ba9aa7144093d2048cc7b3f0883c4e8755d759f091"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/include/ConfigController.php": [
+    "c62406d2f2a0864b5050e6f6e16b8e943e9e8e1923830cde9386153407c3045c"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/include/ConfigManager.php": [
+    "c3cd7e6eaa744a8a65a1b3fdc6b6d3300391884f7db59873a6d7e59c17c7baed"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/include/ConfigValidator.php": [
+    "b61bda536f8463b37a042e53f198ffcc5c88e778ad06fbd13cc567c59ce8b570"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/include/CsrfController.php": [
+    "7b64b395043d3bfaa1f28f7757d14748996edecd18d14e1ff03526076525c55b"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/include/CsrfMiddleware.php": [
+    "4d33cc76fa99f094e196cbfd516979d9c747a184c2045f15959988ca1b8050c3"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/include/DashboardController.php": [
+    "2d37137ed2149c916fca35b3869d6d339b79a623e7fe6a8555a2bc5e9979b869"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/include/EventsController.php": [
+    "cbaab67d80bcd87349d5c2b385b3750af1678e66e67305c0153de5e25bbaffa8"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/include/GPUController.php": [
+    "e35af58cefaf0d6d98eb049fbcc06c67bc8d2a83c966d27bb84829bbd693214a"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/include/GPUManager.php": [
+    "571864feb9cc6088a343ff6968daad1dbdf44be72f354b8615e4147e77a5299b"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/include/InputValidator.php": [
+    "ddbb8f473982279cd3fd58113556a85fefbff53931b4af37ed4623f46761b63a"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/include/PasswordController.php": [
+    "7f5d185ea87a3a2444078a4ea1715929d8efb3bb2bbb96c825abe0e5d81a9663"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/include/PasswordManager.php": [
+    "2fde2bf5f3d0df9d1317de483aa4895a7f41e85cfa65b3e8207f05972691368a"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/include/PathValidator.php": [
+    "93da507a9db04a5a6e86edbc118c415e5c2ca485883cd1c05ff05702e8fef9be"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/include/PreferenceManager.php": [
+    "19169f9ab050674485680aa5d1825b128ff9190b6cc657a8d9253ba43af734f6"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/include/PreferencesController.php": [
+    "d95d81082dd3b097300971e14721a74aadf63c420b43af4bcb3d6c2734d357fe"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/include/ProfileManager.php": [
+    "2abe5a784e5a55951ef7cc6e82eafd9b18d46450f80aee6f895bdd3040122219"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/include/ProfilesController.php": [
+    "8dd54a37ab3e3f7d4668ab65e15610589c064af500183c207418b98dfe24492c"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/include/RateLimiter.php": [
+    "08625b0e57b418c821b2f6b77af400ea0393d639c3b2eb78e83d4b77cb7aa680"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/include/SecureErrorHandler.php": [
+    "4a9ae7585070066edb70e8f79783693e035bcaa1dee3af730d41d5ca6ad8b272"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/include/SecureFileOperations.php": [
+    "6a2402b092beb6fa0b11091f442d7d42bba485ad167972d35c366ecd3b13be5f"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/include/SecurityMiddleware.php": [
+    "e4400abeaa73a9d99dcae6ad9c5747ef33fe6525fdbcdc6d3bc943355cd08b12"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/include/WebInterface.php": [
+    "6ff184500c2a6fa2ede8f5c701b193def74f2188ad12e2cfc252cf0f341659e5"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/include/WebSocketHandler.php": [
+    "424073f3a162affe260a5ab1f2fcc1350b14c68d17e251d2144083c33688d710"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/apply_gpu_binding.php": [
+    "7e94915221cb85e9abd2e59589f59ea27e60616e528969ef35582213376c7e18"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/apply_profile.php": [
+    "d1798f0eb74fa9fac89ea07e9908b0f916d51f13ce987f98a68e204d8ed73d67"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/auto_gpu_switch.sh": [
+    "a3c39fdb158c2a4152aa0446ffb095714fe7e13de29fdd5b38882aff4ab5f820"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/bind_gpu_to_vfio.sh": [
+    "47a557c3d9388cb1047de617f158654fd1cce862a54c33d80bd656d47b5adff0"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/check_container_gpu_requirements.sh": [
+    "c3e88859b0f0bb4a3b0c46ca7b34303fde94c369cae2ec07ca28f62c93590ee0"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/check_service_dependencies.sh": [
+    "01b11c2f58a00ba391cbde998063d6b83f2525fb9c0d94598409e6fd0d0dd8c8"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/check_vfio_binding.sh": [
+    "81e3e31f397361b9cb9d665850546d6b051c77526cb61319cd8537bebf5266e2"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/check_vm_gpu_requirements.sh": [
+    "4476a1e00b7fa1324e1e1e4e0f9c195ac04252809a27ac484ebf7de752a4beb0"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/cleanup_after_gpu_switch.sh": [
+    "3df0ab331267c3d86e2b4b383981b4a1a7b13d089cc389b6277bcadbc6f1c6d5"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/config_backup.sh": [
+    "30e7f061baf70c4065306c0a79a5b52b1636887d223397afc8b7030e93480601"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/config_export.sh": [
+    "040803a021b75b567b5d4cc7f42e9dd2b20f2a17141cb2c5daede444186d566a"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/config_import.sh": [
+    "c7773fe275bd2b2d81b43506d80d166f7d54f70ebcac70b7f31553ee8c6fb2dc"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/config_manager.sh": [
+    "76da240bd0b293d6873f01f625abfe63dae0a90928073af321e20a3a7723ccb5"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/config_migrate.sh": [
+    "762935fd1841b070cb03de18e7c9825c11e6346fe7673e5d4d89ab9c46de16eb"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/config_template.sh": [
+    "ea5c13bc768657fe0f52efc8f5cd90641767d30fc24a6c145a174596c48d7a9a"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/config_validator.sh": [
+    "3fad33403f0bb73652769811addfca7cede5604bd2645c82116074080f28ec59"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/config_version.sh": [
+    "cb1dbba92c5c1f61425fc647d6f2ee185ecd1810b6386bf0063f032a71b8508a"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/create_profile.php": [
+    "77071a5820ac7604749ae565e1f8cd019c86c5ad33756afc09838a4fed4fb49f"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/delete_profile.php": [
+    "c439c3b47aa966998c77ffd63db6104eb92a5f6e706400dabad2d9139bb8cbfd"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/detect_primary_gpu.sh": [
+    "27bfbf8625348bcccdac9a236245e02c906cd2e45ec36b8fcb4e46fa9c5ddfbf"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/determine_switching_action.sh": [
+    "48a5bbea4fbdd410e211b5de43ab8be4ec88abbbdb6b672eab76a02c9cabce92"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/docker_start_handler.sh": [
+    "2fedc480a58a2842a363088f91caec13d867299b6fe981d5c3aad8d9e3e89c3c"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/docker_stop_handler.sh": [
+    "c45a03dc5bdfb8d74204782cfa2e552107092eae20408ee21edd1c20eb46e195"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/execute_gpu_switch.sh": [
+    "2eef2c767731d2f5efe0e2014c5bf64cc03519bcd72af2c07875a9b7422f25a3"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/get_docker_containers.php": [
+    "2a4c52492a45de135350ae3b10d8318324591b77824e2859dcab579873cf11f7"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/get_gpu_binding.php": [
+    "f30a0c2af4d8626f0f44d3e60a7e417bd06e2069610ca19bfe231aa3f238d46e"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/get_gpu_driver_info.sh": [
+    "7fee935314a9f9b312bd31fd5a129c2d8c17e69ccb0f786553e081a2bf67eb32"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/get_gpu_state.sh": [
+    "7717900797c3c91414356fc51e80a548c39b67f13845d86d125a5143687bd49a"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/get_gpu_stats.php": [
+    "e23e95d114acd4e396c9e1d9cf6c85bf57fda49f93e078d7c4f55b86b3ac92ed"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/get_profiles.php": [
+    "a49476967cddbc88557d6bdd13e32748d184f8e4510551493640e6c743b716cb"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/get_service_status.sh": [
+    "d1520b1ae032ae414a1f49c0406d28fdbd941ff193ef0f73a5dd866b28511b03"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/get_vms.php": [
+    "4050e4debc77b0ac22f75617e315db5136fe873c600a811ca1fc91607f5b42a0"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/list_gpus.sh": [
+    "ee103428cb6b7bc29e3a2ba0a45a59dd12ee419c476c4cc35e8a6c13bfffe29d"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/manage_docker_containers.sh": [
+    "c1292c2dbee4f82c1cfafbafb1fdbca6fdace0e3a261389e1145d292c4376538"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/manage_vm_services.sh": [
+    "38595c2abd0532db13a514a58aa0a89f73f5ee05a5dc97783065cfb6e0f3c6d4"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/preference_manager.sh": [
+    "4250644f30db9c471e10f1bec3a1712ae27a775d649f604d72205564bbc3187c"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/prepare_for_gpu_switch.sh": [
+    "6c410e93300f9ba9b10d1ce1859f6afb885bee32aa7a232b4407e804809424bb"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/profile_manager.sh": [
+    "878850bf01a3118ff6e58ba7c3ef6314318b1036399944f649dcb363faf40aa8"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/restore_service_states.sh": [
+    "6220bc3dfaf245acbe8273214fd7bbafcf0e48b88b28b8eecbbd385f14a7bc61"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/rollback_gpu_switch.sh": [
+    "551a2de697612e5e14a268d156ab9cf637338ae7341c12ebc58b456687c6465f"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/save_service_states.sh": [
+    "8b61b6b693e566dc52abfe386f9d85495df5ea4d8cea8794fcf18e740105d1c2"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/secure_shell_lib.sh": [
+    "4c53e7f8a00b99faf934d924579fa75bc6597b7ae7447dfdb5aaad54e7602aac"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/setup_default_admin.sh": [
+    "3f7e3577b13193614bd76b3d5d4ad66e0e95fd4015f9c0dd51bdca8e8a1c6596"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/toggle_profile_enabled.php": [
+    "b47420c7d179c18fe89495af29d0cd22c8b7113eb1c3c3719af8d42531b28c68"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/unbind_gpu_from_vfio.sh": [
+    "c2b81f09da52dd3636032fc002d23dc18e8e0e9e0fc77200f87c026255a27d06"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/update_profile.php": [
+    "5313b2cd0b376d4dfa6dcd88eddd0aa45ed37f933649d34b1e28fb63223ac688"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/update_vfio_conf.sh": [
+    "c94f0bd88552b09a84a285202ede3e5317c3510ed773e32c87e442f25a2af463"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/validate_gpu_address.sh": [
+    "c820d2a3d795d9b52fd54f0b7b37d50dd01d1fa99f8986ab623a64de9431804e"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/validate_service_operation.sh": [
+    "eedea57f7709536e1fc0e80963083c89a3f7c685e357db4d5194f0bceaa4b98a"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/validate_switching_safety.sh": [
+    "d139f149237c6f5b14135c5dea79c092676635abc0f4ae6020afd54d905bc0e8"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/verify_vfio_binding.sh": [
+    "55b813e4ea3ac8bc3ee34e52f726353036428f03c72725992f3c084dd2545603"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/vm_lifecycle_hooks.sh": [
+    "71ba15f3a84e2e5ef29800709ff33e3b41be1848d2ec3be515f88b876d8f0b81"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/vm_start_handler.sh": [
+    "1cab7d825fbe68effca59777449295e7171f1012696807d0e9da718304774c60"
+  ],
+  "usr/local/emhttp/plugins/gpu-switch-manager/scripts/vm_stop_handler.sh": [
+    "dab6fb81f0fd472a37fdc34e4d400665b61cf3fd25e84bab177059e96652cbe4"
+  ],
+  "usr/local/emhttp/webGui/event_handlers/gpu-switch-array-start": [
+    "769ffbf578730419d5518d01d935b2c25206cd471e775613a833bbe977b465d3"
+  ],
+  "usr/local/emhttp/webGui/event_handlers/gpu-switch-array-stop": [
+    "6308f99429f9efe571d1c4c438bf670f02e0cfbac2519863414a756156e5107b"
+  ],
+  "usr/local/emhttp/webGui/event_handlers/gpu-switch-docker-start": [
+    "fe1fb19cfade066dc3272f1b81ccae0e220ba35cc1a57b6098c29573020728c2"
+  ],
+  "usr/local/emhttp/webGui/event_handlers/gpu-switch-docker-stop": [
+    "5d71faf3b877a17497b04ebe62c6762617c194364abf6fce9db8d29670fbaea1"
+  ],
+  "usr/local/emhttp/webGui/event_handlers/gpu-switch-vm-start": [
+    "ef14425b3e5c068107f184b34b0bea1c384b53e85f3ae4ef1df3067dd66c154e"
+  ],
+  "usr/local/emhttp/webGui/event_handlers/gpu-switch-vm-stop": [
+    "208d3989e3fe63c09db630ace66b1988c38fc5cb1b2d9c7554023eeaf4be6003"
+  ]
+}

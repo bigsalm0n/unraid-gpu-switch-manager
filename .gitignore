@@ -19,7 +19,10 @@ desktop.ini
 
 # Build files
 build/
+__pycache__/
+*.pyc
 dist/
+.local/
 node_modules/
 
 # Logs

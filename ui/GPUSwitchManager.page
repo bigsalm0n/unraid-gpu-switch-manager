@@ -1,0 +1,5 @@
+Menu="Settings"
+Icon="icon-hardware"
+Title="GPU Switch Manager"
+---
+<?php include '/usr/local/emhttp/plugins/gpu-switch-manager/dashboard.inc'; ?>

@@ -1,0 +1,66 @@
+name: Test and build
+on:
+  pull_request:
+  push:
+    branches: ['**']
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: true
+    outputs:
+      channel:
+        value: ${{ jobs.linux.outputs.channel }}
+permissions:
+  contents: read
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    outputs:
+      channel: ${{ steps.metadata.outputs.channel }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - name: Install validation tools
+        run: sudo apt-get update && sudo apt-get install -y php-cli php-xml shellcheck python3-jsonschema
+      - name: Exercise the full suite and build the tested version
+        env:
+          GSM_RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          git show ff1e0ce:gpu-switch-manager-2026.05.13.txz > "$RUNNER_TEMP/may13.txz"
+          export GSM_LEGACY_TEST_TXZ="$RUNNER_TEMP/may13.txz" PATH="/usr/bin:$PATH"
+          bash tools/check.sh
+      - id: metadata
+        run: echo "channel=$(python3 -c 'import json; print(json.load(open("dist/release.json"))["channel"])')" >> "$GITHUB_OUTPUT"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: gpu-switch-manager-${{ github.sha }}
+          path: dist/
+          if-no-files-found: error
+  windows:
+    needs: linux
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: gpu-switch-manager-${{ github.sha }}
+          path: reference
+      - name: Rebuild from the same revision and compare every release asset
+        env:
+          GSM_RELEASE_TAG: ${{ inputs.tag }}
+        shell: pwsh
+        run: |
+          python tools/build.py --output dist
+          if ($LASTEXITCODE) { exit $LASTEXITCODE }
+          foreach ($asset in Get-ChildItem reference -File) {
+            $rebuilt = Get-FileHash -Algorithm SHA256 (Join-Path dist $asset.Name)
+            if ($rebuilt.Hash -ne (Get-FileHash $asset.FullName).Hash) { throw "Different build output for $($asset.Name)" }
+          }
