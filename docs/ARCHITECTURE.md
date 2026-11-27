@@ -1,6 +1,6 @@
 # Ownership and lifecycle
 
-Libvirt owns all PCI detachment, reattachment and guest assignment. Each shared GPU uses managed PCI hostdev entries covering the complete approved slot, including audio. A profile authorizes one GPU for one VM name. Several VMs may reference the same GPU. Other GPUs can operate concurrently. The initial backend shares NVIDIA devices whose userspace identity can be verified and can protect any discovered display controller. Manual start and shutdown use the normal libvirt domain lifecycle. [Managed PCI devices](https://libvirt.org/formatdomain.html#host-device-assignment)
+Libvirt owns all PCI detachment, reattachment and guest assignment. Each shared GPU uses managed PCI hostdev entries covering the complete approved slot, including audio. An approved audio function may start unbound, as it does when Unraid blacklists the host audio driver. Restoration checks that libvirt returned every function to its recorded original binding, including this unbound state. A profile authorizes one GPU for one VM name. Several VMs may reference the same GPU. Other GPUs can operate concurrently. The initial backend shares NVIDIA devices whose userspace identity can be verified and can protect any discovered display controller. Manual start and shutdown use the normal libvirt domain lifecycle. [Managed PCI devices](https://libvirt.org/formatdomain.html#host-device-assignment)
 
 The qemu.d filter consumes domain XML, emits empty stdout on success and returns preparation failures synchronously. Calls into libvirt run only in the external CLI or dashboard process. The hook exits immediately on reconnect, which preserves existing guest processes. [Libvirt hook lifecycle and filter contract](https://libvirt.org/hooks.html)
 
@@ -8,7 +8,7 @@ The qemu.d filter consumes domain XML, emits empty stdout on success and returns
 | --- | --- | --- |
 | prepare/begin | Match enrolled UUID, PCI and subsystem fingerprints, complete slot, IOMMU members, exclusive upstream port, host drivers and managed XML. Snapshot container IDs and stop in reverse dependency order. Scan the target again. | PREPARING_VM, or refuse startup and attempt restoration. |
 | start/begin | Match domain and transaction. Verify VFIO on every approved function before QEMU launches. | VFIO_BOUND |
-| started/begin | Verify the started domain hook and actual VFIO drivers. | VM_ACTIVE |
+| started/begin | Verify the started domain hook and actual VFIO drivers. Start configured CPU-only services by their recorded Docker IDs. A service failure is reported while the VM keeps running. | VM_ACTIVE |
 | release/end | After libvirt releases resources, wait for original drivers and UUID, check container IDs, verify renumberable mappings and dependencies, then start eligible workloads. | RESTORING_HOST, followed by cleared ownership or ERROR. |
 
 The adapter reads graphics/compute PIDs from device-scoped NVIDIA XML and checks open character device numbers for NVIDIA, DRM and HDMI sound nodes. Cgroup membership and Docker's process listing associate PIDs with selected containers. Other GPUs' active clients constrain which containers can stop. A conservative topology check rejects a shared upstream bridge, even where the IOMMU groups differ.

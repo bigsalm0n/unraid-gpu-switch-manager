@@ -11,6 +11,7 @@
         if (!state || busy) return;
         for (const id of ["save", "delete", "assign", "dry", "start", "shutdown"])
             el(id).disabled = !el("vm").value || (id === "save" && !el("gpu").value);
+        el("load-profile").disabled = !el("saved-profile").value;
         el("recover").disabled = !el("gpu").value;
         el("enroll").disabled = !el("pci").value;
         el("unmanage").disabled = !state.devices.find(d => d.pci === el("pci").value)?.key;
@@ -53,28 +54,59 @@
         select.replaceChildren(...names.map(x => new Option(x, x)));
         if (names.includes(old)) select.value = old;
     }
+    function updateWorkloads() {
+        if (!state) return;
+        const key = el("gpu").value;
+        const gpu = state.devices.find(device => device.key === key);
+        const detected = gpu?.containers;
+        const vm = el("vm").value;
+        const automatic = state.config.enabled && el("automatic").checked;
+        el("trigger").textContent = vm && key ? vm + " uses " + key + " · " +
+            (automatic ? "Start from VM Manager or here" : "Start from GPU Switch Manager") : "";
+        el("workload-summary").textContent = !key ? "Select a shared GPU to find affected containers." :
+            !detected ? "Live workload detection is unavailable for this GPU." :
+            Object.keys(detected).length ? "Detected GPU workloads appear first. Review their policies before testing the VM." :
+            "No running containers were detected using this GPU.";
+        const body = el("workloads").querySelector("tbody");
+        if (!body) return;
+        const rows = [...body.rows];
+        for (const row of rows) {
+            const name = row.dataset.name;
+            const reasons = detected && Object.hasOwn(detected, name) ? detected[name] : null;
+            const policy = row.querySelector("select").value;
+            row.cells[1].textContent = reasons ? reasons.join(", ") + (policy ? "" : " · Policy required") : "";
+            row.hidden = !reasons && !policy && !el("show-other").checked;
+        }
+        rows.sort((a, b) => Number(Boolean(b.cells[1].textContent)) - Number(Boolean(a.cells[1].textContent)));
+        body.replaceChildren(...rows);
+    }
     function profile() {
-        const p = state.config.profiles[el("vm").value];
+        const vm = el("vm").value;
+        const p = Object.hasOwn(state.config.profiles, vm) ? state.config.profiles[vm] : null;
+        el("vm-message").textContent = p ? "Loaded saved profile for " + vm : (vm ? "No saved profile for " + vm : "");
         el("gpu").value = p?.gpu || "";
         el("automatic").checked = p?.automatic ?? true;
         const items = p?.containers || [];
         const names = [...new Set([...items.map(x => x.name), ...(state.containers || [])])];
-        const grid = table(["Container", "Switch policy", "Start after (comma-separated names)"]);
+        const grid = table(["Container", "GPU access detected", "Action when VM starts", "Start after (comma-separated names)"]);
         for (const name of names) {
             const row = grid.tBodies[0].insertRow();
             row.dataset.name = name;
             row.insertCell().textContent = name;
+            row.insertCell();
             const policy = document.createElement("select");
-            for (const [k, label] of [["", "Unassigned"], ["restore", "Stop and restore"], ["stop", "Stop only"], ["leave", "Leave running"]])
+            for (const [k, label] of [["", "Unassigned"], ["restore", "Stop and restore"], ["stop", "Stop only"], ["leave", "Leave running"], ["start", "Start with VM (CPU only)"]])
                 policy.add(new Option(label, k));
             const item = items.find(x => x.name === name);
             policy.value = item?.policy || "";
+            policy.onchange = updateWorkloads;
             row.insertCell().append(policy);
             const deps = document.createElement("input");
             deps.value = (item?.after || []).join(", ");
             row.insertCell().append(deps);
         }
         el("workloads").replaceChildren(grid);
+        updateWorkloads();
         syncControls();
     }
     function renderDevices(devices) {
@@ -105,7 +137,19 @@
                 el("pci").onchange();
                 el("key").focus();
             };
-            row.insertCell().append(configure);
+            const actions = row.insertCell();
+            actions.append(configure);
+            if (d.key && !d.protected) {
+                const workloads = document.createElement("button");
+                workloads.type = "button";
+                workloads.textContent = "Review workloads";
+                workloads.onclick = () => {
+                    el("gpu").value = d.key;
+                    el("gpu").onchange();
+                    el("gpu").focus();
+                };
+                actions.append(workloads);
+            }
         }
         el("devices").replaceChildren(grid);
         if (!devices.length) {
@@ -121,24 +165,27 @@
         options(el("gpu"), Object.keys(state.config.gpus).filter(k => !state.config.gpus[k].protected));
         el("gpu").prepend(new Option("Select a shared GPU", ""));
         options(el("vm"), [...new Set([...state.vms, ...Object.keys(state.config.profiles)])]);
+        options(el("saved-profile"), Object.keys(state.config.profiles));
+        if (!Object.keys(state.config.profiles).length)
+            el("saved-profile").replaceChildren(new Option("No saved profiles", ""));
         el("enabled").checked = state.config.enabled;
         el("pci").onchange();
         el("message").textContent = state.errors.join("\n") || "Discovery complete" + (state.release ? " · " + state.release.version : "");
         profile();
     }
     const show = result => { el("detail").textContent = JSON.stringify(result, null, 2); };
-    function button(id, fn) {
+    function button(id, fn, message = "message") {
         el(id).onclick = async () => {
             if (busy) return;
             busy = true;
             syncControls();
-            try { await fn(); } catch (e) { el("message").textContent = e.message; }
+            try { await fn(); } catch (e) { el(message).textContent = e.message; }
             finally { busy = false; syncControls(); }
         };
     }
-    async function mutate(action, fields, prompt) {
+    async function mutate(action, fields, prompt, message = "message") {
         if (!window.confirm(prompt)) return;
-        el("message").textContent = "Waiting for " + action;
+        el(message).textContent = action === "start" ? "Checking prerequisites and starting the VM…" : "Waiting for " + action;
         let active = true;
         async function progress() {
             try {
@@ -153,13 +200,24 @@
             active = false;
             await refresh();
             show(result);
+            if (action === "start") {
+                el(message).textContent = "VM started · " + result.vm;
+                if (result.warnings?.length) el(message).textContent += " · Container startup: " + result.warnings.join("; ");
+            }
         } finally { active = false; clearTimeout(polling); }
     }
     function save(config, prompt) {
         return mutate("import", {config: JSON.stringify(config), revision: state.revision}, prompt);
     }
     el("vm").onchange = profile;
-    el("gpu").onchange = syncControls;
+    el("saved-profile").onchange = syncControls;
+    button("load-profile", () => {
+        el("vm").value = el("saved-profile").value;
+        profile();
+    }, "vm-message");
+    el("gpu").onchange = () => { updateWorkloads(); syncControls(); };
+    el("show-other").onchange = updateWorkloads;
+    el("automatic").onchange = updateWorkloads;
     el("pci").onchange = () => {
         const d = state.devices.find(d => d.pci === el("pci").value);
         el("key").value = d?.key || "";
@@ -194,9 +252,12 @@
         delete cfg.profiles[el("vm").value];
         return save(cfg, "Delete the selected VM profile?");
     });
-    button("dry", async () => show(await api("dry-run", {vm: el("vm").value})));
+    button("dry", async () => {
+        show(await api("dry-run", {vm: el("vm").value}));
+        el("vm-message").textContent = "Dry run passed. Review the planned workload stops in the details.";
+    }, "vm-message");
     button("assign", () => mutate("assign", {vm: el("vm").value}, "Add the approved PCI functions to the persistent definition of " + el("vm").value + "?"));
-    button("start", () => mutate("start", {vm: el("vm").value}, "Stop assigned workloads and start " + el("vm").value + "?"));
+    button("start", () => mutate("start", {vm: el("vm").value}, "Stop assigned workloads and start " + el("vm").value + "?", "vm-message"), "vm-message");
     button("shutdown", () => mutate("shutdown", {vm: el("vm").value}, "Request a graceful shutdown of " + el("vm").value + "?"));
     button("recover", () => mutate("recover", {gpu: el("gpu").value}, "Reconcile the selected GPU and restore recorded containers if safe?"));
     function download(data, filename) {
@@ -221,7 +282,9 @@
             try {
                 const next = await api("status");
                 if (!busy && previous === state && next.revision === state.revision) {
+                    state.devices = next.devices;
                     renderDevices(next.devices);
+                    updateWorkloads();
                     if (next.errors.length) el("message").textContent = next.errors.join("\n");
                 }
             }

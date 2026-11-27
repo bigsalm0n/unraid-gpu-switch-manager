@@ -154,6 +154,65 @@ class Rig(unittest.TestCase):
 
 
 class LifecycleTests(Rig):
+    def test_start_vm_service_only_after_verified_assignment(self):
+        self.cfg["profiles"]["Windows"]["containers"][-1]["policy"] = "start"
+        self.store.change(self.cfg)
+        self.hook("prepare")
+        self.assertNotIn(("start", "stopped"), self.ops)
+        self.bound()
+        self.hook("start")
+        self.assertNotIn(("start", "stopped"), self.ops)
+        self.hook("started")
+        self.hook("started")
+        self.assertEqual(self.ops.count(("start", "stopped")), 1)
+        self.driver(self.gaming, "nvidia")
+        self.driver(self.gaming[:-1] + "1", "snd_hda_intel")
+        self.hook("release")
+        self.assertTrue(self.cs["stopped"]["State"]["Running"])
+        self.assertNotIn(("stop", "stopped"), self.ops)
+
+    def test_gpu_access_refuses_start_policy_before_stopping_workloads(self):
+        self.cfg["profiles"]["Windows"]["containers"][-1]["policy"] = "start"
+        self.store.change(self.cfg)
+        self.cs["stopped"]["Config"]["Env"] = ["NVIDIA_VISIBLE_DEVICES=all"]
+        with self.assertRaisesRegex(Refused, "must have no host GPU access"):
+            self.hook("prepare")
+        self.assertFalse(self.ops)
+
+    def test_failed_startup_service_leaves_vm_active(self):
+        self.cfg["profiles"]["Windows"]["containers"][-1]["policy"] = "start"
+        self.store.change(self.cfg)
+        self.hook("prepare")
+        self.bound()
+        original = self.command
+
+        def failed_start(*args, **kwargs):
+            if args[:2] == ("docker", "start"):
+                raise Refused("service failed to start")
+            return original(*args, **kwargs)
+
+        self.command = failed_start
+        self.hook("started")
+        journal = self.m.lease("game", self.cfg)
+        self.assertEqual(journal["state"], "VM_ACTIVE")
+        self.assertIn("service failed to start", journal["startup_warnings"][0])
+
+    def test_unbound_audio_is_verified_and_restores_to_unbound(self):
+        audio = self.gaming[:-1] + "1"
+        (self.hw.pci / audio / "driver").unlink()
+        plan = self.m.prepare(self.cfg, "game", "Windows", self.domain_id, domain(self.xml())[2], True)
+        self.assertIsNone(plan["drivers"][audio])
+        self.hook("prepare")
+        self.assertIsNone(self.m.lease("game", self.cfg)["drivers"][audio])
+        self.bound()
+        self.hook("start")
+        self.hook("started")
+        self.driver(self.gaming, "nvidia")
+        (self.hw.pci / audio / "driver").unlink()
+        self.hook("release")
+        self.assertEqual(self.ops[-2:], [("start", "voice"), ("start", "dependent")])
+        self.assertFalse(self.store.journal("game").exists())
+
     def test_identical_ids_target_specific_clients_and_audio(self):
         cards = self.hw.discover()
         self.assertEqual(len(cards), 2)

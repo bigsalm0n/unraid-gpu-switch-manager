@@ -15,7 +15,7 @@ For the current repository build, install the verified local manifest using the 
 https://raw.githubusercontent.com/bigsalm0n/unraid-gpu-switch-manager/release-installer/gpu-switch-manager.plg
 ```
 
-The URL above follows the current candidate. For release notes and version-pinned installers, see the [GitHub releases](https://github.com/bigsalm0n/unraid-gpu-switch-manager/releases).
+For the current version number, release notes and pinned installer, see the [current release candidate](https://github.com/bigsalm0n/unraid-gpu-switch-manager/blob/release-installer/README.md#install).
 <!-- latest-install:end -->
 
 Merges to protected `main` that change plugin or build files publish a candidate after CI verifies the build. CI advances the rolling installer on `release-installer`. The stable channel is `https://github.com/bigsalm0n/unraid-gpu-switch-manager/releases/latest/download/gpu-switch-manager.plg` once a stable release is published. Installed plugins use their manifest's channel when you select **Plugins → Check for Updates**. Stable releases have the highest version suffix for their date. The manifest embeds the package for offline installation and verifies its SHA-256 before extraction.
@@ -37,7 +37,7 @@ The probe asks libvirt to create a diskless, hardware-free paused domain and ver
 ## Configure sharing
 
 1. Open **Settings → GPU Switch Manager**. Enroll dedicated devices as protected and the gaming GPU as shared. A GPU without an enrollment is unmanaged.
-2. Choose the VM, GPU and containers. Each container can be left running, stopped only, or stopped and restored. Set dependencies by name and save the profile. The dry run shows which running containers the plan would stop. A running all-GPU container needs an explicit policy. Use NVIDIA UUIDs where possible.
+2. Choose the VM, GPU and containers. Detected workloads for the selected GPU appear first. A container can be left running, stopped only, stopped and restored, or started with the VM if it has no host GPU access. Containers started with the VM stay running after guest shutdown. Set dependencies by name and save the profile. The dry run shows which running containers the plan would stop. A running all-GPU container needs an explicit policy. Use NVIDIA UUIDs where possible.
 3. With the VM shut off, back up its XML and select **Add managed devices to VM**. Each profile supports one complete graphics slot and its audio functions. Review conflicting PCI assignments in the Unraid VM editor.
 4. Run **Validate and dry run**. Use **Start VM** for a manual transition. For standard Unraid VM Manager starts, enable automatic switching globally and select **Switch when started from VM Manager** in the profile. The dashboard shows ownership, transition state and restoration errors.
 

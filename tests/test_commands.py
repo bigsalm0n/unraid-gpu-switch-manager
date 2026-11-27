@@ -183,6 +183,18 @@ class Commands(Rig):
         self.assertIn("shutdown requested", self.dispatch("shutdown", "Windows")["result"])
         self.assertFalse(self.dispatch("progress"))
 
+    def test_manual_start_logs_existing_vfio_binding_without_stopping_workloads(self):
+        audio = self.gaming[:-1] + "1"
+        self.driver(audio, "vfio-pci")
+        self.mock_virsh(self.xml(), "shut off")
+        with self.assertRaisesRegex(Refused, audio + " is already bound to VFIO"):
+            self.dispatch("start", "Windows")
+        self.assertFalse(self.ops)
+        self.assertFalse(self.dispatch("progress"))
+        record = self.dispatch("logs")[-1]
+        self.assertEqual(record["state"], "REFUSED")
+        self.assertIn(audio, record["message"])
+
     def test_manual_start_failure_recovers_prepared_workloads(self):
         def virt(action, *args):
             if action == "dumpxml":

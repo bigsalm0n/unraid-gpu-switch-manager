@@ -85,10 +85,10 @@ function validate(mixed $cfg): \stdClass
         foreach ($profile->containers as $item) {
             fields($item, 'name policy after');
             ensure(matches($item->name, NAME) && !isset($names[$item->name])
-                && in_array($item->policy, ['restore', 'stop', 'leave'], true), 'Invalid or duplicate container');
+                && in_array($item->policy, ['restore', 'stop', 'leave', 'start'], true), 'Invalid or duplicate container');
             $names[$item->name] = true;
             $assignments[$item->name][$profile->gpu] = true;
-            if ($item->policy !== 'leave') {
+            if (in_array($item->policy, ['restore', 'stop'], true)) {
                 $stoppable[$item->name] = true;
             }
         }

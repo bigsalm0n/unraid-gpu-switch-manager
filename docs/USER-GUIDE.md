@@ -17,7 +17,7 @@ In Unraid, open **Plugins → Install Plugin**, paste the rolling candidate mani
 https://raw.githubusercontent.com/bigsalm0n/unraid-gpu-switch-manager/release-installer/gpu-switch-manager.plg
 ```
 
-Open **Settings → GPU Switch Manager** and select **Refresh**. The **GPU overview** shows each device's PCI address, UUID where available, current driver, role, and ownership. The candidate is suitable for testing on your hardware. Confirm a complete manual start and shutdown cycle before enabling automatic switching.
+Open **Settings → User Utilities → GPU Switch Manager** and select **Refresh**. The **GPU overview** shows each device's PCI address, UUID where available, current driver, role, and ownership. The candidate is suitable for testing on your hardware. Confirm a complete manual start and shutdown cycle before enabling automatic switching.
 
 ## Set the GPU roles
 
@@ -34,7 +34,7 @@ A profile key is the name you give the GPU in this plugin. It appears in the **S
 ## Create a VM sharing profile
 
 1. In **VM sharing profiles**, select your VM and the **Shared GPU** you enrolled. Leave **Switch when started from VM Manager** unchecked for the first test.
-2. Set a policy for containers that can use the shared GPU and any services that depend on them. Containers pinned to your protected GPU can usually stay unassigned. Prefer the NVIDIA UUID in Docker GPU settings. An all-GPU container may need an explicit policy because it can see the shared card.
+2. Review the detected workloads listed first and the reason each was flagged. Set a policy for containers that can use the shared GPU and any services that depend on them. Select **Show other containers** to add a service outside the detected list. Containers pinned to your protected GPU can usually stay unassigned. Prefer the NVIDIA UUID in Docker GPU settings. An all-GPU container may need an explicit policy because it can see the shared card.
 3. Select **Save profile**. With the VM shut down, choose **Add managed devices to VM**. This adds the shared GPU and approved functions to the selected VM's persistent definition. If the plugin reports conflicting PCI assignments, review the existing devices in the Unraid VM editor before trying again.
 4. Select **Validate and dry run**. Review the drivers and container plan. A container with `will_stop: true` is scheduled to stop during the transition. Resolve any reported blocker before starting the guest.
 
@@ -44,8 +44,11 @@ A profile key is the name you give the GPU in this plugin. It appears in the **S
 | **Stop and restore** | The plugin can stop the container for the VM. It starts the same container again after the GPU returns if the container was running before the switch. |
 | **Stop only** | The plugin can stop the container for the VM. Start it yourself once the GPU has returned. |
 | **Leave running** | The plugin leaves the container running. If it has the shared GPU open, the switch stops at validation and reports the workload. |
+| **Start with VM (CPU only)** | Once the VM has the shared GPU, the plugin starts the container if it was stopped. The container needs a configuration without host GPU access and stays running after guest shutdown. |
 
 Use **Start after** for container dependencies. For example, if `voice-ui` depends on `voice-engine`, put `voice-engine` in the **Start after** field for `voice-ui`. Keep both containers in the same profile. Separate multiple dependency names with commas. The plugin stops dependent services first and restores their dependencies first.
+
+To reopen a profile, choose it under **Saved profile** and select **Load saved profile**. The VM, GPU and container settings return to their saved values.
 
 ## Test manual switching
 

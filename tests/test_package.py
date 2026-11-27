@@ -73,6 +73,9 @@ class Package(unittest.TestCase):
         self.assertTrue(os.access(self.stage / LIB / "gpuctl", os.X_OK))
         self.assertEqual(root.getroot().get("name"), "gpu-switch-manager")
         self.assertEqual(root.getroot().get("author"), "bigsalmon")
+        self.assertEqual(root.getroot().get("launch"), "Settings/GPUSwitchManager")
+        page = self.stage / WEB / "GPUSwitchManager.page"
+        self.assertIn('Menu="Utilities"', page.read_text().split("---", 1)[0])
         self.assertIn("**GPU Switch Manager**", (self.stage / WEB / "README.md").read_text())
         self.assertFalse(list(self.stage.rglob("*.py")))
         self.assertNotIn("python", root.find("FILE[@Run]").findtext("INLINE").lower())

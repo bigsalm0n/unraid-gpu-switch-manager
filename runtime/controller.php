@@ -334,7 +334,7 @@ function vmAction(Manager $manager, object $cfg, string $action, string $vm): ar
         ensure($journal && $journal->domain === $uid && $journal->state === 'VM_ACTIVE'
             && trim(virsh($manager, 'domstate', $uid)) === 'running',
             'Start issued; verified VM_ACTIVE state unavailable. Inspect diagnostics.');
-        return ['vm' => $vm, 'result' => 'VM_ACTIVE'];
+        return ['vm' => $vm, 'result' => 'VM_ACTIVE', 'warnings' => $journal->startup_warnings ?? []];
     });
 }
 
@@ -409,11 +409,22 @@ function dispatch(Manager $manager, array $arguments, string $input = ''): mixed
         }, true);
     }
     return $manager->s->locked('maintenance', function () use ($manager, $action, $arguments) {
-        return match ($action) {
-            'export' => $manager->s->cfg(),
-            'recover' => recover($manager, $arguments[0]),
-            default => vmAction($manager, $manager->s->cfg(), $action, $arguments[0]),
-        };
+        if ($action === 'recover') {
+            return recover($manager, $arguments[0]);
+        }
+        $cfg = $manager->s->cfg();
+        if ($action === 'export') {
+            return $cfg;
+        }
+        $vm = $arguments[0];
+        try {
+            return vmAction($manager, $cfg, $action, $vm);
+        } catch (Refused $error) {
+            if ($action === 'start' && isset($cfg->profiles->$vm)) {
+                $manager->s->log($cfg->profiles->$vm->gpu, $vm, 'REFUSED', $error->getMessage());
+            }
+            throw $error;
+        }
     }, true);
 }
 

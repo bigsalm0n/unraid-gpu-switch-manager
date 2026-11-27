@@ -16,9 +16,15 @@
   <h3>VM sharing profiles</h3>
   <label><input id="gsm-enabled" type="checkbox"> Enable automatic switching</label>
   <button type="button" id="gsm-enable">Save switching setting</button>
+  <div class="gsm-fields">
+  <label>Saved profile <select id="gsm-saved-profile"></select></label>
+  <button type="button" id="gsm-load-profile">Load saved profile</button></div>
   <div class="gsm-fields"><label>VM <select id="gsm-vm"></select></label>
   <label>Shared GPU <select id="gsm-gpu"></select></label>
   <label><input id="gsm-automatic" type="checkbox"> Switch when started from VM Manager</label></div>
+  <p id="gsm-trigger"></p>
+  <p id="gsm-workload-summary"></p>
+  <label><input id="gsm-show-other" type="checkbox"> Show other containers</label>
   <div id="gsm-workloads"></div>
   <button type="button" id="gsm-save">Save profile</button>
   <button type="button" id="gsm-delete">Delete profile</button>
@@ -27,6 +33,7 @@
   <button type="button" id="gsm-start">Start VM</button>
   <button type="button" id="gsm-shutdown">Request guest shutdown</button>
   <button type="button" id="gsm-recover">Recover selected GPU</button></p>
+  <p id="gsm-vm-message" role="status" aria-live="polite"></p>
   <details><summary>Configuration import and export</summary>
     <button type="button" id="gsm-export">Download configuration</button>
     <label>Import file <input type="file" id="gsm-file" accept="application/json,.json"></label>
