@@ -17,10 +17,17 @@ MANIFEST = "gpu-switch-manager.plg"
 def candidate(root):
     stamp = datetime.fromtimestamp(int(git(root, "show", "-s", "--format=%ct", "HEAD")), timezone.utc)
     start = stamp.strftime("%Y-%m-%dT00:00:00Z")
-    # First-parent position gives concurrent pushes different tags. Re-running
-    # a build of the same revision selects the same immutable release.
-    sequence = int(git(root, "rev-list", "--count", "--first-parent", "--since-as-filter=" + start, "HEAD"))
-    tag = f"v{stamp:%Y.%m.%d}-rc.{sequence}"
+    prefix = f"v{stamp:%Y.%m.%d}-rc."
+    tags = [tag for tag in git(root, "tag", "--merged", "HEAD", "--list", prefix + "*").splitlines()
+            if re.fullmatch(re.escape(prefix) + r"[1-9]\d{0,3}", tag)]
+    head = git(root, "rev-parse", "HEAD")
+    sequence = int(git(root, "rev-list", "--count", "--first-parent", "--since-as-filter=" + start, head))
+    for tag in tags:
+        distance = int(git(root, "rev-list", "--count", "--first-parent", "--ancestry-path", f"{tag}..{head}"))
+        if distance == 0 and git(root, "rev-parse", tag + "^{commit}") == head:
+            return tag
+        sequence = max(sequence, int(tag.removeprefix(prefix)) + distance)
+    tag = prefix + str(sequence)
     versions(tag)
     return tag
 
@@ -48,7 +55,7 @@ def promote(root, assets, repo, tag):
     if doc.count(BEGIN) != 1 or doc.count(END) != 1 or doc.index(BEGIN) >= doc.index(END):
         raise ValueError("Missing or ambiguous README installation markers")
     release = f"https://github.com/{repo}/releases"
-    channel = f"https://raw.githubusercontent.com/{repo}/main/{MANIFEST}"
+    channel = f"https://raw.githubusercontent.com/{repo}/release-installer/{MANIFEST}"
     entry = (f"{BEGIN}\n```text\n{channel}\n```\n\nCurrent build **{version}** · [Release notes]({release}/tag/{tag})"
              f" · [Version-pinned installer]({release}/download/{tag}/{MANIFEST})\n{END}")
     updated = doc[:doc.index(BEGIN)] + entry + doc[doc.index(END) + len(END):]

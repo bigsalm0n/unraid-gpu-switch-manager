@@ -83,6 +83,20 @@ class VersionedBuild(unittest.TestCase):
         self.assertLess(versions(first)[1], versions(second)[1])
         self.assertEqual(second, candidate(self.repo))
 
+    def test_main_candidate_advances_past_manual_tag_on_a_merged_branch(self):
+        main = self.git("branch", "--show-current").strip()
+        self.git("checkout", "-qb", "fix")
+        self.commit("Manually tagged fix")
+        prefix = candidate(self.repo).rsplit(".", 1)[0]
+        manual = prefix + ".90"
+        self.git("tag", manual)
+        self.assertEqual(candidate(self.repo), manual)
+        self.git("checkout", "-q", main)
+        self.git("merge", "-q", "--no-ff", "fix", "-m", "Merge fix")
+        self.assertEqual(candidate(self.repo), prefix + ".91")
+        self.commit("Next main revision")
+        self.assertEqual(candidate(self.repo), prefix + ".92")
+
     def test_rolling_url_and_readme_only_advance_to_verified_releases(self):
         readme = self.repo / "README.md"
         readme.write_text(f"Intro\n{BEGIN}\nold\n{END}\nOther docs\n")
@@ -101,7 +115,7 @@ class VersionedBuild(unittest.TestCase):
         promote(self.repo, assets, repo, tag)
         original = readme.read_bytes()
         self.assertIn(f"/releases/download/{tag}/{MANIFEST}".encode(), original)
-        self.assertIn(f"https://raw.githubusercontent.com/{repo}/main/{MANIFEST}".encode(), original)
+        self.assertIn(f"https://raw.githubusercontent.com/{repo}/release-installer/{MANIFEST}".encode(), original)
         self.assertTrue(original.endswith(b"Other docs\n"))
         promote(self.repo, assets, repo, tag)
         promote(self.repo, assets, repo, bundle(1))

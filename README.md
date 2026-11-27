@@ -6,7 +6,7 @@ Share an NVIDIA GPU between Docker and a KVM guest. When the guest starts, the p
 
 ## Install
 
-For the current repository build, install the verified local manifest using the commands under [Build and release](#build-and-release). For published candidates, open **Plugins → Install Plugin** and use the candidate channel.
+For the current repository build, install the verified local manifest using the commands under [Build and release](#build-and-release). For published candidates, open **Plugins → Install Plugin** and use the [rolling candidate manifest](https://raw.githubusercontent.com/bigsalm0n/unraid-gpu-switch-manager/release-installer/gpu-switch-manager.plg). The original `main` URL is retained for existing installations.
 
 <!-- latest-install:begin -->
 ```text
@@ -16,7 +16,7 @@ https://raw.githubusercontent.com/bigsalm0n/unraid-gpu-switch-manager/main/gpu-s
 Current build **2026.11.27-rc.6** · [Release notes](https://github.com/bigsalm0n/unraid-gpu-switch-manager/releases/tag/v2026.11.27-rc.6) · [Version-pinned installer](https://github.com/bigsalm0n/unraid-gpu-switch-manager/releases/download/v2026.11.27-rc.6/gpu-switch-manager.plg)
 <!-- latest-install:end -->
 
-The candidate channel advances after CI publishes and verifies a tagged release. The stable channel is `https://github.com/bigsalm0n/unraid-gpu-switch-manager/releases/latest/download/gpu-switch-manager.plg` once a stable release is published. Installed plugins use their manifest's channel when you select **Plugins → Check for Updates**. Stable releases have the highest version suffix for their date. The manifest embeds the package for offline installation and verifies its SHA-256 before extraction.
+Merges to protected `main` that change plugin or build files publish a candidate after CI verifies the build. CI advances the rolling installer on `release-installer`. The stable channel is `https://github.com/bigsalm0n/unraid-gpu-switch-manager/releases/latest/download/gpu-switch-manager.plg` once a stable release is published. Installed plugins use their manifest's channel when you select **Plugins → Check for Updates**. Stable releases have the highest version suffix for their date. The manifest embeds the package for offline installation and verifies its SHA-256 before extraction.
 
 If the May plugin is installed, back up its configuration and follow the migration steps first. Its uninstaller deletes saved settings. [May upgrade procedure](docs/AUDIT.md#upgrading-from-the-may-plugin)
 
@@ -64,6 +64,6 @@ Copy the verified `dist/gpu-switch-manager.plg` to `/tmp/gpu-switch-manager.plg`
 plugin install /tmp/gpu-switch-manager.plg
 ```
 
-A pushed `vYYYY.MM.DD-rc.N` tag publishes a candidate after Linux tests and a byte-for-byte Windows rebuild. A pushed `vYYYY.MM.DD` tag publishes an accepted revision on the stable channel. Both use Git-generated release notes. Verify hardware acceptance and redistribution rights before pushing a stable release tag.
+Merges to `main` publish a candidate after Linux tests and a byte-for-byte Windows rebuild. An explicit `vYYYY.MM.DD-rc.N` tag can also trigger a candidate build. A pushed `vYYYY.MM.DD` tag publishes an accepted revision on the stable channel. Both use Git-generated release notes. Verify hardware acceptance and redistribution rights before pushing a stable release tag.
 
 The technical references cover [ownership and lifecycle](docs/ARCHITECTURE.md), [the legacy audit and redistribution status](docs/AUDIT.md), and [automated tests and hardware acceptance](docs/TESTING.md).

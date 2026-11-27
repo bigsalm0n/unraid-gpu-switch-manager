@@ -183,7 +183,7 @@ final class Installer
 
     private function applyFiles(array $touched, bool $remove): void
     {
-        $backupRoot = $this->store->run . '/installer-' . uuid();
+        $backupId = uuid();
         $saved = [];
         $hookLink = is_link($this->hook) ? readlink($this->hook) : null;
         $hookText = $hookLink === null && is_file($this->hook) ? readText($this->hook) : null;
@@ -203,9 +203,8 @@ final class Installer
                 }
                 $backup = null;
                 if ($exists) {
-                    $backup = $backupRoot . '/' . $name;
-                    directory(dirname($backup));
-                    ensure(copy($dest, $backup) && chmod($backup, fileperms($dest) & 0777), 'Cannot back up ' . $name);
+                    $backup = dirname($dest) . '/.gsm-rollback-' . $backupId . '-' . count($saved);
+                    ensure(link($dest, $backup), 'Cannot back up ' . $name);
                 }
                 $saved[$name] = $backup;
                 if ($hash === null) {
@@ -231,8 +230,7 @@ final class Installer
                     if ($backup === null) {
                         removeFile($dest);
                     } else {
-                        directory(dirname($dest), 0755);
-                        putFile($dest, readText($backup), fileperms($backup) & 0777);
+                        ensure(rename($backup, $dest), 'Cannot restore ' . $name);
                     }
                 }
                 if ($this->mounted) {
@@ -255,24 +253,21 @@ final class Installer
                 }
             } catch (\Throwable $rollbackError) {
                 throw new Refused($error->getMessage() . '. Rollback failed: ' . $rollbackError->getMessage()
-                    . '. Backups retained at ' . $backupRoot);
+                    . '. Remaining backup files start with .gsm-rollback-' . $backupId);
             }
-            $this->removeBackups($backupRoot);
+            $this->removeBackups($saved);
             throw $error;
         }
-        $this->removeBackups($backupRoot);
+        $this->removeBackups($saved);
     }
 
-    private function removeBackups(string $root): void
+    private function removeBackups(array $saved): void
     {
-        if (!is_dir($root)) {
-            return;
+        foreach ($saved as $backup) {
+            if ($backup !== null && !@unlink($backup) && hasPath($backup)) {
+                fwrite(STDERR, "Could not remove rollback file $backup\n");
+            }
         }
-        foreach (new \RecursiveIteratorIterator(new \RecursiveDirectoryIterator($root, \FilesystemIterator::SKIP_DOTS),
-            \RecursiveIteratorIterator::CHILD_FIRST) as $entry) {
-            $entry->isDir() ? @rmdir($entry->getPathname()) : @unlink($entry->getPathname());
-        }
-        @rmdir($root);
     }
 
     public function apply(bool $remove = false): void

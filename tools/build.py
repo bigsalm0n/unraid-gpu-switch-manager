@@ -54,7 +54,7 @@ def build(out, tag=None, repository="bigsalm0n/unraid-gpu-switch-manager"):
         raise ValueError("Invalid release repository")
     if release.tag:
         base = (f"https://github.com/{repository}/releases/latest/download" if release.channel == "stable"
-                else f"https://raw.githubusercontent.com/{repository}/main")
+                else f"https://raw.githubusercontent.com/{repository}/release-installer")
         plg.set("pluginURL", base + "/gpu-switch-manager.plg")
     ET.SubElement(plg, "CHANGES").text = notes
     cache = "/boot/config/plugins/gpu-switch-manager/" + package
@@ -64,6 +64,7 @@ def build(out, tag=None, repository="bigsalm0n/unraid-gpu-switch-manager"):
     f = ET.SubElement(plg, "FILE", Run="/bin/bash")
     ET.SubElement(f, "INLINE").text = f"""
 set -euo pipefail
+exec 2>&1
 /usr/bin/php -d auto_prepend_file=none -r 'if (PHP_VERSION_ID < 80100) {{fwrite(STDERR, "GPU Switch Manager requires PHP 8.1 or newer.\\n"); exit(1);}}'
 printf '%s  %s\\n' '{sha}' '{cache}' | sha256sum -c -
 stage=$(mktemp -d)
@@ -74,6 +75,7 @@ tar -xJf '{cache}' -C "$stage"
     f = ET.SubElement(plg, "FILE", Run="/bin/bash", Method="remove")
     ET.SubElement(f, "INLINE").text = f"""
 set -euo pipefail
+exec 2>&1
 if [[ -f /{LIB}install.php ]]; then
     /usr/bin/php -d auto_prepend_file=none /{LIB}install.php remove
 elif [[ -f '{cache}' ]]; then
