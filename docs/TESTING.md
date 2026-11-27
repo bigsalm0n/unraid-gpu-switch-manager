@@ -2,7 +2,7 @@
 
 ## Automated verification
 
-Run in Linux using Python 3.12+, python3-jsonschema, Bash, ShellCheck, PHP CLI with SimpleXML and Node. Runtime Python supports 3.9+. The test fixture uses the safe tar extraction API available in newer Python versions.
+Run in Linux using Python 3.12+, python3-jsonschema, Bash, ShellCheck, PHP CLI with SimpleXML, DOM and POSIX, and Node 20+. Python runs the development harness and builds the archive. Mock tests exercise the actual PHP runtime with synthetic sysfs, procfs, device nodes, Docker, NVIDIA and libvirt adapters.
 
 ```bash
 fixture=$(mktemp)
@@ -11,7 +11,7 @@ GSM_LEGACY_TEST_TXZ="$fixture" bash tools/check.sh
 rm -f -- "$fixture"
 ```
 
-The check runs Bash, PHP and JavaScript syntax checks, ShellCheck, JSON Schema and backend validation, the unit suite, two independent package builds and checksum verification. CI uses the same entry point and checks Windows output against the Linux bundle. The release workflow publishes the tagged package after both jobs pass and verifies its public install URL.
+The check runs Bash, PHP and JavaScript syntax checks, ShellCheck, dashboard initialization and error tests, JSON Schema and backend validation, the unit suite, two independent package builds and checksum verification. CI uses the same entry point and checks Windows output against the Linux bundle. The release workflow publishes a pushed tag after both jobs pass and verifies its public install URL.
 
 | Concern | Automated evidence |
 | --- | --- |
@@ -20,7 +20,7 @@ The check runs Bash, PHP and JavaScript syntax checks, ShellCheck, JSON Schema a
 | Safe assignment | Protected, unrelated and competing VMs, extra group member, shared upstream bridge, changed UUID/BDF, incomplete or unmanaged XML, persistent definition update preserving metadata. |
 | Failure paths | Stop failure, client surviving stop, failed detachment/start, absent host driver or NVIDIA userspace, replaced container, array shutdown and journal corruption. |
 | Restoration and exclusivity | Dependency order, previously stopped container, stop-only and leave policies, simultaneous competing prepares, duplicate release, active-domain recovery refusal and idempotent recovery. |
-| Packaging and access | Real May package as migration fixture, temporary-root install/upgrade/remove, existing native hook and foreign files, installation failure rollback, boot with an outstanding journal, native-session/CSRF/confirmation contract with a stub CLI. |
+| Packaging and access | Real May package as migration fixture, temporary-root install/upgrade/remove, private Python file cleanup, existing native hook and foreign files, installation failure rollback, boot with an outstanding journal, native-session/CSRF/confirmation contract with a stub CLI. |
 | Release integrity | Exercise the manifest's checksum gate with a damaged cache. Check matching metadata in the package and installer, RC upgrade ordering, dirty and mismatched tags, development reproducibility and complete stable-promotion notes using real temporary Git repositories. |
 
 ## First hardware session
@@ -28,6 +28,16 @@ The check runs Bash, PHP and JavaScript syntax checks, ShellCheck, JSON Schema a
 **Hardware acceptance is pending.** Run these commands as root on the test host only after authorizing the test. Use a quiet window for the shared GPU and keep the protected workload and the control VM running. Record the GPU model, kernel, plugin version, timestamps, outputs and observations for each cycle. Store evidence under a private array share after testing. `/tmp` is temporary.
 
 Follow the [install procedure](../README.md#install). Open Bash on the test host. Supply the exact guest and control VM names displayed by virsh.
+
+### WebGUI and update acceptance
+
+1. With no active shared-GPU transaction, install the local candidate over `2026.11.27.0004`. Record the old and new plugin versions, compare `sharing.json` before and after, and verify that the old private `python` directory is gone. Check the title, description, author and icon under **Plugins**.
+2. Open **Settings → GPU Switch Manager**. Refresh the inventory and compare it with `gpuctl discover` and `virsh list --all`. Confirm that the PCI, shared GPU and VM selectors populate and that the layout works in light and dark themes, including a narrow viewport.
+3. Inspect the `api.php` request in DevTools. Expect a same-origin POST with a URL-encoded `csrf_token` and a successful JSON response. Replay the read-only `status` request with the field omitted and with a dummy token and verify that the endpoint does not execute it. On current WebGUI, expect a native 403. Redact tokens, cookies and session values from any captured evidence.
+4. Log out and retry from a previously open tab. Expect a sign-in message or the native sign-in page. Sign back in, reopen Settings and repeat inventory refresh. Repeat over HTTP and HTTPS when both are enabled on the test server.
+5. After publishing a newer test release to the installed manifest's channel, select **Plugins → Check for Updates** and verify the native **Update** button appears. Apply it with the shared guest off and the control VM and protected workload running. Check settings, hook, VM and workload identities afterward. Reboot in a separate maintenance window and later remove the plugin with VM Manager enabled to verify cleanup.
+
+### Baseline and enrollment
 
 ```bash
 set -euo pipefail
@@ -69,28 +79,25 @@ Compare discovered PCI addresses, UUIDs, subsystem IDs, groups and upstream brid
 "$ctl" export > "$T/enrolled.json"
 docker ps -a --format '{{.Names}}'
 read -r -a WORKLOADS -p "Containers to stop and restore, in startup order: "
-python3 - "$T/enrolled.json" "$VM" "$AI" "$GAME" "${WORKLOADS[@]}" <<'PY'
-import json, sys
-from pathlib import Path
-p, vm, ai, game, *names = sys.argv[1:]
-cfg = json.loads(Path(p).read_text())
-assert cfg["gpus"]["ai"]["uuid"] == ai and cfg["gpus"]["game"]["uuid"] == game
-cfg["profiles"][vm] = {"gpu": "game", "containers": [
-    {"name": name, "policy": "restore", "after": names[max(i-1,0):i]}
-    for i, name in enumerate(names)]}
-Path(p).write_text(json.dumps(cfg, indent=2))
-PY
+jq -e --arg vm "$VM" --arg ai "$AI" --arg game "$GAME" '
+  if .gpus.ai.uuid != $ai or .gpus.game.uuid != $game then error("Enrolled UUID mismatch") else . end
+  | $ARGS.positional as $names
+  | .profiles[$vm] = {gpu: "game", containers: [
+      range($names | length) as $i
+      | {name: $names[$i], policy: "restore", after: (if $i == 0 then [] else [$names[$i-1]] end)}
+    ]}
+' --args "${WORKLOADS[@]}" < "$T/enrolled.json" > "$T/profile.json"
 docker ps -a --format '{{.Names}}  {{.Status}}'
-cat "$T/enrolled.json"
+cat "$T/profile.json"
 ```
 
 Review the selected workloads and correct it for the actual host before import. Select an explicit leave policy for any reported all-GPU workload that must remain untouched. Active target clients in a leave container still block the operation. Enroll another display controller as protected using the BDF shown by discovery if desired. To retain this additional enrollment, make it before exporting the JSON above.
 
 ```bash
-"$ctl" import < "$T/enrolled.json"
+"$ctl" import < "$T/profile.json"
 "$ctl" assign "$VM"
 "$ctl" dry-run "$VM" | tee "$T/plan.json"
-python3 -c 'import json,sys; c=json.load(open(sys.argv[1])); c["enabled"]=True; print(json.dumps(c))' "$T/enrolled.json" > "$T/enabled.json"
+jq '.enabled = true' "$T/profile.json" > "$T/enabled.json"
 "$ctl" import < "$T/enabled.json"
 ```
 
@@ -110,7 +117,7 @@ protected_state() {
 }
 protected_state > "$T/protected.before"
 grep -q ' true ' "$T/protected.before"
-mapfile -t ASSIGNED < <(python3 -c 'import json,sys; print("\n".join(i["name"] for i in json.load(open(sys.argv[1]))["containers"]))' "$T/plan.json")
+mapfile -t ASSIGNED < <(jq -r '.containers[].name' "$T/plan.json")
 docker inspect --format '{{.Name}} {{.Id}} {{.State.Running}}' "${ASSIGNED[@]}" > "$T/assigned.before"
 check_cuda() {
   docker run --pull=never --rm --network none --gpus "device=$GAME" "$CUDA_IMAGE" python -c 'import torch; assert torch.cuda.device_count()==1; x=torch.arange(1024,device="cuda"); assert x.sum().item()==523776; print(torch.cuda.get_device_name(0),"CUDA kernel and transfer passed")'

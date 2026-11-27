@@ -1,18 +1,41 @@
 import copy
-import io
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
-from unittest.mock import patch
 import uuid
 
-import sys
-ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "runtime"))
-from hardware import Hardware
-from lifecycle import Manager, domain
-from model import DEFAULT, Refused, Store, read, validate, write
+from php_bridge import Refused, bridge, read, write
+
+
+DEFAULT = {"version": 2, "enabled": False, "gpus": {}, "profiles": {}}
+
+
+class Adapter:
+    def __init__(self, root, target, command=None):
+        self.root, self.target, self.command = root, target, command
+
+    def __getattr__(self, method):
+        return lambda *args: bridge(self.root, self.target, *args, method=method, command=self.command)
+
+
+class Store(Adapter):
+    def __init__(self, root):
+        super().__init__(root, "store")
+        self.run, self.config = root / "ram", root / "flash"
+        self.settings = self.config / "sharing.json"
+
+    def journal(self, key):
+        return self.config / "transactions" / (key + ".json")
+
+
+def validate(cfg):
+    return bridge("/", "validate", cfg)
+
+
+def domain(xml):
+    return bridge("/", "domain", xml)
 
 
 class Rig(unittest.TestCase):
@@ -24,9 +47,13 @@ class Rig(unittest.TestCase):
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
         self.root = Path(temp.name)
-        self.hw = Hardware(self.root / "sys", self.root / "proc", self.root / "dev", self.command)
-        self.store = Store(self.root / "flash", self.root / "ram")
-        self.m = Manager(self.store, self.hw)
+        self.hw = Adapter(self.root, "hardware", lambda *a, **kw: self.command(*a, **kw))
+        self.hw.sys, self.hw.proc, self.hw.dev = (self.root / name for name in ("sys", "proc", "dev"))
+        self.hw.pci = self.hw.sys / "bus/pci/devices"
+        self.store = Store(self.root)
+        self.m = Adapter(self.root, "manager", lambda *a, **kw: self.command(*a, **kw))
+        self.virt_commands = []
+        self.virt = None
         self.ops = []
         self.uuids = {}
         self.procs = {}
@@ -81,8 +108,12 @@ class Rig(unittest.TestCase):
         self.procs[pid] = addr
 
     def command(self, *args, timeout=0):
+        if args[0] == "virsh":
+            self.assertIsNotNone(self.virt, "Hook attempted to call libvirt")
+            self.virt_commands.append(args[3:])
+            return self.virt(*args[3:])
         if args[0] == "lspci":
-            return args[-1] + " test GPU"
+            return "Vendor:\tTest vendor\nDevice:\tTest GPU"
         if args[0] == "nvidia-smi":
             self.assertEqual(args[1:], ("-i", args[2], "-q", "-x"))
             pci = args[2]
@@ -97,6 +128,8 @@ class Rig(unittest.TestCase):
             return "\n".join(c["Id"] for c in self.cs.values())
         if args[1] == "inspect":
             return json.dumps(list(self.cs.values()))
+        if args[1] == "top":
+            return "PID\n"
         name = next(n for n, c in self.cs.items() if c["Id"] == args[-1])
         self.ops.append((args[1], name))
         if args[1] == "stop" and self.stop_fails and name == "voice":
@@ -109,8 +142,11 @@ class Rig(unittest.TestCase):
         devices = "".join(f"<hostdev type='pci' managed='yes'><source><address domain='0x0000' bus='0x{pci[5:7]}' slot='0x00' function='0x{f}'/></source></hostdev>" for f in (0, 1))
         return f"<domain><name>{vm}</name><uuid>{self.domain_id}</uuid><devices>{devices}</devices></domain>"
 
+    def dispatch(self, *args, data=""):
+        return bridge(self.root, "dispatch", args, data, command=lambda *a, **kw: self.command(*a, **kw))
+
     def hook(self, event, vm="Windows"):
-        self.m.hook(vm, event, "end" if event == "release" else "begin", self.xml(vm))
+        self.dispatch("hook", vm, event, "end" if event == "release" else "begin", data=self.xml(vm))
 
     def bound(self):
         for f in ("0", "1"):
@@ -167,6 +203,19 @@ class LifecycleTests(Rig):
             self.hook("prepare")
         self.assertFalse(self.ops)
 
+    def test_sysfs_drm_minor_detects_client_without_host_device_node(self):
+        drm = self.hw.pci / self.gaming / "drm/controlD66"
+        drm.mkdir(parents=True)
+        number = os.stat("/dev/full").st_rdev
+        (drm / "dev").write_text(f"{os.major(number)}:{os.minor(number)}")
+        proc = self.hw.proc / "212"
+        (proc / "fd").mkdir(parents=True)
+        (proc / "fd/3").symlink_to("/dev/full")
+        self.assertIn(212, self.hw.clients(self.hw.info(self.gaming)))
+        with self.assertRaisesRegex(Refused, "unquiesced client"):
+            self.hook("prepare")
+        self.assertFalse(self.ops)
+
     def test_still_open_after_stop_rolls_back(self):
         self.client(203, "voice", self.gaming)
         with self.assertRaisesRegex(Refused, "remain open"):
@@ -191,7 +240,7 @@ class LifecycleTests(Rig):
     def test_failed_reattach_blocks_restoration(self):
         self.hook("prepare")
         self.bound()
-        with patch("lifecycle.monotonic", side_effect=[0, 20]), self.assertRaises(Refused):
+        with self.assertRaises(Refused):
             self.hook("release")
         self.assertEqual(len(self.ops), 2)
         self.assertEqual(self.m.lease("game", self.cfg)["state"], "ERROR")
@@ -199,7 +248,7 @@ class LifecycleTests(Rig):
     def test_missing_userspace_even_with_host_driver(self):
         self.hook("prepare")
         self.broken = self.gaming
-        with patch("lifecycle.monotonic", side_effect=[0, 20]), self.assertRaises(Refused):
+        with self.assertRaises(Refused):
             self.hook("release")
         self.assertEqual(len(self.ops), 2)
 
@@ -217,7 +266,7 @@ class LifecycleTests(Rig):
             self.hook("prepare")
         card = self.hw.pci / self.gaming
         card.rename(self.hw.pci / "0000:08:00.0")
-        with self.assertRaises(OSError):
+        with self.assertRaises(Refused):
             self.hook("prepare")
         self.assertFalse(self.ops)
 
@@ -234,7 +283,7 @@ class LifecycleTests(Rig):
     def test_changed_container_id_and_deferred_array_stop(self):
         self.hook("prepare")
         (self.store.run / "array-stopping").touch()
-        with self.assertRaisesRegex(Refused, "deferred"):
+        with self.assertRaisesRegex(Refused, "Array is stopping"):
             self.hook("release")
         (self.store.run / "array-stopping").unlink()
         self.cs["voice"]["Id"] = "f" * 64
@@ -246,6 +295,7 @@ class LifecycleTests(Rig):
         items = self.cfg["profiles"]["Windows"]["containers"]
         next(i for i in items if i["name"] == "voice")["policy"] = "stop"
         next(i for i in items if i["name"] == "dependent")["after"] = []
+        self.cs["dependent"]["Config"]["Env"] = ["NVIDIA_VISIBLE_DEVICES=" + self.uuids[self.gaming]]
         items.append(dict(name="infer", policy="leave", after=[]))
         self.store.change(self.cfg)
         self.hook("prepare")
@@ -254,8 +304,16 @@ class LifecycleTests(Rig):
         self.assertNotIn(("start", "voice"), self.ops)
         self.assertNotIn(("stop", "infer"), self.ops)
 
+    def test_configured_unrelated_container_is_left_running(self):
+        self.cfg["profiles"]["Windows"]["containers"].append(dict(name="infer", policy="stop", after=[]))
+        self.store.change(self.cfg)
+        self.hook("prepare")
+        self.hook("release")
+        self.assertTrue(self.cs["infer"]["State"]["Running"])
+        self.assertFalse(any(name == "infer" for _, name in self.ops))
+
     def test_dry_run_corrupt_journal_and_configuration_edit(self):
-        plan = self.m.prepare(self.cfg, "game", "Windows", self.domain_id, domain(self.xml())[2], dry=True)
+        plan = self.m.prepare(self.cfg, "game", "Windows", self.domain_id, domain(self.xml())[2], True)
         self.assertEqual(plan["gpu"], "game")
         self.assertFalse(self.ops)
         self.hook("prepare")

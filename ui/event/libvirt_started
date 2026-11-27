@@ -1,2 +1,2 @@
 #!/bin/bash
-exec python3 -B /usr/local/lib/gpu-switch-manager/install.py register
+exec /usr/bin/php -d auto_prepend_file=none /usr/local/lib/gpu-switch-manager/install.php register

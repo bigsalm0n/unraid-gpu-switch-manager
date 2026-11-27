@@ -14,6 +14,9 @@ from versioning import describe, git
 ROOT = Path(__file__).resolve().parents[1]
 LIB = "usr/local/lib/gpu-switch-manager/"
 WEB = "usr/local/emhttp/plugins/gpu-switch-manager/"
+TITLE = "GPU Switch Manager"
+DESCRIPTION = ("Dynamically share GPUs between Unraid Docker containers and virtual machines, "
+               "with automatic driver switching, protected GPU support and safe GPU recovery.")
 
 
 def build(out, tag=None, repository="bigsalm0n/unraid-gpu-switch-manager"):
@@ -25,13 +28,10 @@ def build(out, tag=None, repository="bigsalm0n/unraid-gpu-switch-manager"):
     sources = git(ROOT, "ls-files", "-z", "--cached", "--others", "--exclude-standard", "--", "runtime", "ui").split("\0")
     for folder, dest in (("runtime", LIB), ("ui", WEB)):
         for name in sources:
-            if name.startswith(folder + "/"):
+            if name.startswith(folder + "/") and (ROOT / name).is_file():
                 files[dest + name[len(folder)+1:]] = (ROOT / name).read_bytes().replace(b"\r\n", b"\n")
-    # Keep the source CLI directly runnable for development.
-    files[LIB + "gpuctl.py"] = files.pop(LIB + "gpuctl")
-    files[LIB + "gpuctl"] = (ROOT / "packaging/gpuctl").read_bytes().replace(b"\r\n", b"\n")
-    for source in ("packaging/install.py", "packaging/legacy.json"):
-        files[LIB + Path(source).name] = (ROOT / source).read_bytes().replace(b"\r\n", b"\n")
+    files[LIB + "legacy.json"] = (ROOT / "packaging/legacy.json").read_bytes().replace(b"\r\n", b"\n")
+    files[WEB + "README.md"] = f"**{TITLE}**\n\n{DESCRIPTION}\n".encode()
     metadata = (json.dumps(release.metadata(), sort_keys=True, indent=2) + "\n").encode()
     files[LIB + "release.json"] = metadata
     notes = release.notes
@@ -47,11 +47,12 @@ def build(out, tag=None, repository="bigsalm0n/unraid-gpu-switch-manager"):
             tar.addfile(entry, io.BytesIO(data))
     binary = (out / package).read_bytes()
     sha = hashlib.sha256(binary).hexdigest()
-    plg = ET.Element("PLUGIN", name="gpu-switch-manager", author="GPU Switch Manager contributors",
-                     version=release.plugin_version, min="6.12.0", launch="Settings/GPUSwitchManager", icon="icon-hardware")
+    plg = ET.Element("PLUGIN", name="gpu-switch-manager", author="bigsalmon",
+                     version=release.plugin_version, min="6.12.0", launch="Settings/GPUSwitchManager",
+                     icon="icon-hardware", support=f"https://github.com/{repository}")
+    if not re.fullmatch(r"[\w.-]+/[\w.-]+", repository):
+        raise ValueError("Invalid release repository")
     if release.tag:
-        if not re.fullmatch(r"[\w.-]+/[\w.-]+", repository):
-            raise ValueError("Invalid release repository")
         base = (f"https://github.com/{repository}/releases/latest/download" if release.channel == "stable"
                 else f"https://raw.githubusercontent.com/{repository}/main")
         plg.set("pluginURL", base + "/gpu-switch-manager.plg")
@@ -61,11 +62,32 @@ def build(out, tag=None, repository="bigsalm0n/unraid-gpu-switch-manager"):
     ET.SubElement(f, "INLINE").text = base64.b64encode(binary).decode()
     ET.SubElement(f, "SHA256").text = sha
     f = ET.SubElement(plg, "FILE", Run="/bin/bash")
-    install_script = (ROOT / "packaging/install.sh").read_text(encoding="utf-8")
-    ET.SubElement(f, "INLINE").text = install_script.replace("@PACKAGE_SHA@", sha).replace("@PACKAGE@", cache)
+    ET.SubElement(f, "INLINE").text = f"""
+set -euo pipefail
+/usr/bin/php -d auto_prepend_file=none -r 'if (PHP_VERSION_ID < 80100) {{fwrite(STDERR, "GPU Switch Manager requires PHP 8.1 or newer.\\n"); exit(1);}}'
+printf '%s  %s\\n' '{sha}' '{cache}' | sha256sum -c -
+stage=$(mktemp -d)
+trap 'rm -rf -- "$stage"' EXIT
+tar -xJf '{cache}' -C "$stage"
+/usr/bin/php -d auto_prepend_file=none "$stage/{LIB}install.php" install
+"""
     f = ET.SubElement(plg, "FILE", Run="/bin/bash", Method="remove")
-    remove_script = (ROOT / "packaging/remove.sh").read_text(encoding="utf-8")
-    ET.SubElement(f, "INLINE").text = remove_script.replace("@PACKAGE@", cache)
+    ET.SubElement(f, "INLINE").text = f"""
+set -euo pipefail
+if [[ -f /{LIB}install.php ]]; then
+    /usr/bin/php -d auto_prepend_file=none /{LIB}install.php remove
+elif [[ -f '{cache}' ]]; then
+    printf '%s  %s\\n' '{sha}' '{cache}' | sha256sum -c -
+    stage=$(mktemp -d)
+    trap 'rm -rf -- "$stage"' EXIT
+    tar -xJf '{cache}' -C "$stage"
+    /usr/bin/php -d auto_prepend_file=none "$stage/{LIB}install.php" remove
+elif [[ -e /boot/config/plugins/gpu-switch-manager/hook-registered || -e /etc/libvirt/hooks/qemu.d/60-gpu-switch-manager ]]; then
+    echo 'GPU Switch Manager runtime and cached package are missing. Reinstall this version before removing its hook.' >&2
+    exit 1
+fi
+rm -f -- '{cache}'
+"""
     manifest = out / "gpu-switch-manager.plg"
     manifest.write_bytes(ET.tostring(plg, encoding="utf-8", xml_declaration=True))
     (out / "RELEASE-NOTES.md").write_bytes(notes.encode())

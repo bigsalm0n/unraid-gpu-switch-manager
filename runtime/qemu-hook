@@ -4,20 +4,16 @@ case "$2/$3" in
     prepare/begin|start/begin|started/begin|release/end) ;;
     *) exit 0 ;;
 esac
-lib=/usr/local/lib/gpu-switch-manager
-if [[ -r $lib/python-env && -r $lib/gpuctl.py ]]; then
-    # shellcheck source=runtime/python-env
-    source "$lib/python-env"
-    if select_python "$lib"; then
-        exec "$python" -EB "$lib/gpuctl.py" hook "$1" "$2" "$3"
-    fi
+ctl=/usr/local/lib/gpu-switch-manager/gpuctl
+if [[ -x $ctl && -r ${ctl%/*}/controller.php ]] && [[ -x /usr/bin/php ]]; then
+    exec "$ctl" hook "$1" "$2" "$3"
 fi
 # This file lives on the libvirt image. It still runs if boot-time plugin
 # installation failed. Preserve pending journals and allow unrelated guests.
 if [[ $2 == release ]]; then exit 0; fi
 # The variables in the PHP fallback belong to PHP.
 # shellcheck disable=SC2016
-exec php -r '
+exec /usr/bin/php -d auto_prepend_file=none -r '
 $xml = simplexml_load_file("php://stdin", "SimpleXMLElement", LIBXML_NONET);
 if ($xml === false) exit(1);
 $cfg = json_decode(@file_get_contents("/boot/config/plugins/gpu-switch-manager/sharing.json") ?: "{}", true);

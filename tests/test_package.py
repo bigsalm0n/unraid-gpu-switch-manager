@@ -12,11 +12,17 @@ import unittest
 import xml.etree.ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
-for d in ("runtime", "tools", "packaging"):
+for d in ("tools",):
     sys.path.insert(0, str(ROOT / d))
 from build import build
-from install import Installer, LIB, WEB, HOOK, MANIFEST, PERSIST, TARGET
-from model import DEFAULT, Refused, read, write
+from php_bridge import Refused, bridge, read, write
+from test_lifecycle import DEFAULT
+
+LIB = "usr/local/lib/gpu-switch-manager"
+WEB = "usr/local/emhttp/plugins/gpu-switch-manager"
+HOOK = "etc/libvirt/hooks/qemu.d/60-gpu-switch-manager"
+MANIFEST = LIB + "/installed.json"
+PERSIST = "boot/config/plugins/gpu-switch-manager"
 
 
 class Package(unittest.TestCase):
@@ -37,11 +43,14 @@ class Package(unittest.TestCase):
         self.native = self.root / "etc/libvirt/hooks/qemu"
         self.native.parent.mkdir(parents=True)
         self.native.write_text("#!/bin/sh\nexit 0\n")
-        self.tool = Installer(self.root, self.stage, mounted=True)
+        self.mounted = True
+        self.config = self.root / PERSIST / "sharing.json"
+        self.journal = self.root / PERSIST / "transactions/game.json"
+        self.run = self.root / "run/gpu-switch-manager"
 
-    def apply(self, remove=False):
-        with self.tool.s.lock("maintenance"):
-            self.tool.apply(remove=remove)
+    def apply(self, remove=False, stage=None):
+        bridge(self.root, "installer", mounted=self.mounted, remove=remove,
+               source=None if remove else str(stage or self.stage))
 
     def test_build_reproducible_manifest_and_payload(self):
         other = self.root / "dist"
@@ -60,8 +69,13 @@ class Package(unittest.TestCase):
         self.assertEqual(raw, next(other.glob("*.txz")).read_bytes())
         for f in root.findall("FILE[@Run]"):
             subprocess.run(["bash", "-n"], input=f.findtext("INLINE"), text=True, check=True)
-            subprocess.run(["shellcheck", "-x", "-s", "bash", "-"], input=f.findtext("INLINE"), text=True, check=True)
+            subprocess.run(["shellcheck", "-s", "bash", "-"], input=f.findtext("INLINE"), text=True, check=True)
         self.assertTrue(os.access(self.stage / LIB / "gpuctl", os.X_OK))
+        self.assertEqual(root.getroot().get("name"), "gpu-switch-manager")
+        self.assertEqual(root.getroot().get("author"), "bigsalmon")
+        self.assertIn("**GPU Switch Manager**", (self.stage / WEB / "README.md").read_text())
+        self.assertFalse(list(self.stage.rglob("*.py")))
+        self.assertNotIn("python", root.find("FILE[@Run]").findtext("INLINE").lower())
 
     def test_manifest_rejects_a_corrupt_cached_package_before_install(self):
         manifest = ET.parse(self.manifest)
@@ -70,10 +84,11 @@ class Package(unittest.TestCase):
         cache.write_bytes(base64.b64decode(data.findtext("INLINE")))
         script = manifest.find("FILE[@Run]").findtext("INLINE").replace(data.get("Name"), str(cache))
         marker = self.root / "install-called"
-        shim = self.root / "python3"
-        shim.write_text('#!/bin/bash\nif [[ $1 == -EB ]]; then test -r "$2" && test "$3" = install && touch "$MARKER"; fi\n')
+        shim = self.root / "php"
+        shim.write_text('#!/bin/bash\nif [[ ${3-} == -r ]]; then exit 0; fi\ntest -r "$3" && test "$4" = install && touch "$MARKER"\n')
         shim.chmod(0o755)
-        env = dict(os.environ, PATH=str(self.root) + ":" + os.environ["PATH"], MARKER=str(marker))
+        script = script.replace("/usr/bin/php", str(shim))
+        env = dict(os.environ, PATH="/usr/bin:/bin", MARKER=str(marker))
         for intact in (True, False):
             if not intact:
                 marker.unlink()
@@ -86,11 +101,11 @@ class Package(unittest.TestCase):
         self.apply()
         self.assertEqual((self.root / HOOK).read_bytes(), (self.stage / LIB / "qemu-hook").read_bytes())
         cfg = DEFAULT | {"enabled": True}
-        self.tool.s.change(cfg)
+        write(self.config, cfg)
         foreign = self.root / WEB / "third-party.txt"
         foreign.write_text("retain")
         self.apply()
-        self.assertEqual(self.tool.s.cfg(), cfg)
+        self.assertEqual(read(self.config), cfg)
         other = self.root / HOOK
         other.unlink()
         other.symlink_to("/third-party/hook")
@@ -103,36 +118,36 @@ class Package(unittest.TestCase):
         self.assertFalse((self.root / LIB).exists())
         self.assertEqual(self.native.read_text(), "#!/bin/sh\nexit 0\n")
         self.assertEqual(foreign.read_text(), "retain")
-        self.assertEqual(self.tool.s.cfg(), cfg)
-        self.assertFalse(self.tool.s.run.exists())
+        self.assertEqual(read(self.config), cfg)
+        self.assertFalse(self.run.exists())
 
     def test_unmounted_image_and_active_transaction(self):
-        self.tool.mounted = False
+        self.mounted = False
         self.apply()
         self.assertFalse(os.path.lexists(self.root / HOOK))
-        self.tool.mounted = True
+        self.mounted = True
         self.apply()
-        self.tool.mounted = False
+        self.mounted = False
         with self.assertRaisesRegex(Refused, "mounted"):
             self.apply(remove=True)
-        self.tool.mounted = True
-        write(self.tool.s.journal("game"), {"state": "VM_ACTIVE"})
+        self.mounted = True
+        write(self.journal, {"state": "VM_ACTIVE"})
         for remove in (False, True):
             with self.assertRaisesRegex(Refused, "Outstanding"):
                 self.apply(remove)
         self.assertTrue((self.root / MANIFEST).exists())
 
     def test_boot_reinstall_preserves_pending_transaction(self):
-        self.tool.s.change(DEFAULT.copy())
-        write(self.tool.s.journal("game"), {"state": "ERROR"})
+        write(self.config, DEFAULT)
+        write(self.journal, {"state": "ERROR"})
         self.apply()
-        self.assertTrue(self.tool.s.journal("game").exists())
+        self.assertTrue(self.journal.exists())
 
     def test_image_hook_vetoes_profile_when_runtime_missing(self):
         self.apply()
         cfg = self.root / "missing-runtime.json"
         write(cfg, {"profiles": {"Windows": {"gpu": "game"}}})
-        wrapper = (self.root / HOOK).read_text().replace("/usr/local/lib/gpu-switch-manager", str(self.root / "missing-runtime"))
+        wrapper = (self.root / HOOK).read_text().replace("/usr/local/lib/gpu-switch-manager/gpuctl", str(self.root / "missing-ctl"))
         wrapper = wrapper.replace("/boot/config/plugins/gpu-switch-manager/sharing.json", str(cfg))
         (self.root / HOOK).write_text(wrapper)
         for name, expected in (("Windows", 1), ("Control guest", 0)):
@@ -140,6 +155,37 @@ class Package(unittest.TestCase):
             p = subprocess.run(["bash", str(self.root / HOOK), name, "prepare", "begin"], input=xml, text=True, capture_output=True)
             self.assertEqual(p.returncode, expected, p.stderr)
             self.assertEqual(p.stdout, "")
+
+    def test_upgrade_removes_only_manifest_owned_private_python_files(self):
+        self.apply()
+        path = self.root / LIB / "python/bin/python3"
+        path.parent.mkdir(parents=True)
+        path.write_bytes(b"private interpreter fixture")
+        launcher = self.root / LIB / "gpuctl"
+        launcher.write_text("#!/bin/bash\nexit 123\n")
+        manifest_path = self.root / MANIFEST
+        manifest = read(manifest_path)
+        for owned in (path, launcher):
+            manifest[owned.relative_to(self.root).as_posix()] = hashlib.sha256(owned.read_bytes()).hexdigest()
+        write(manifest_path, manifest)
+        cfg = DEFAULT | {"enabled": True}
+        write(self.config, cfg)
+        self.apply()
+        self.assertFalse((self.root / LIB / "python").exists())
+        self.assertEqual(launcher.read_bytes(), (self.stage / LIB / "gpuctl").read_bytes())
+        self.assertEqual(read(self.config), cfg)
+
+    def test_upgrade_refuses_vfio_on_associated_audio_function(self):
+        self.apply()
+        cfg = DEFAULT | {"gpus": {"game": {"pci": "0000:62:00.0", "protected": False,
+               "uuid": "GPU-00000000-0000-0000-0000-000000000001",
+               "functions": {"0": "030000:10de:0000:10de:0000", "1": "040300:10de:0001:10de:0001"}}}}
+        write(self.config, cfg)
+        pci = self.root / "sys/bus/pci/devices/0000:62:00.1"
+        pci.mkdir(parents=True)
+        (pci / "driver").symlink_to("/sys/bus/pci/drivers/vfio-pci")
+        with self.assertRaisesRegex(Refused, "still uses VFIO"):
+            self.apply()
 
     def test_unknown_legacy_main_hook_refused_before_install(self):
         self.native.write_text("# libvirt qemu hook for GPU switching\n")
@@ -157,8 +203,8 @@ class Package(unittest.TestCase):
         self.assertTrue((self.root / HOOK).is_file())
 
     def test_files_roll_back_when_registration_fails(self):
-        from unittest.mock import patch
-        with patch.object(self.tool, "register", side_effect=OSError("simulated write error")), self.assertRaises(OSError):
+        (self.root / HOOK).parent.write_text("not a directory")
+        with self.assertRaisesRegex(Refused, "safe directory"):
             self.apply()
         self.assertFalse((self.root / MANIFEST).exists())
         self.assertFalse((self.root / WEB / "api.php").exists())
@@ -169,7 +215,7 @@ class Package(unittest.TestCase):
         write(legacy, {"version": "1.0", "profiles": {"Windows": {"gpu": "1"}}})
         self.apply()
         self.assertEqual(read(legacy)["version"], "1.0")
-        self.assertEqual(self.tool.s.cfg(), DEFAULT)
+        self.assertEqual(read(self.config), DEFAULT)
 
     def test_real_legacy_package_when_supplied(self):
         path = os.environ.get("GSM_LEGACY_TEST_TXZ")

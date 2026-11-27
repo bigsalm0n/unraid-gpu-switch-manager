@@ -1,15 +1,39 @@
 (() => {
     "use strict";
+    const root = document.getElementById("gsm");
+    if (!root) return;
     const el = id => document.getElementById("gsm-" + id);
-    let state, polling;
+    let state, polling, busy = false;
+    function syncControls() {
+        for (const control of root.querySelectorAll("button, select, input")) {
+            control.disabled = busy || (!state && !["gsm-refresh", "gsm-diag", "gsm-logs", "gsm-download"].includes(control.id));
+        }
+        if (!state || busy) return;
+        for (const id of ["save", "delete", "assign", "dry", "start", "shutdown"])
+            el(id).disabled = !el("vm").value || (id === "save" && !el("gpu").value);
+        el("recover").disabled = !el("gpu").value;
+        el("enroll").disabled = !el("pci").value;
+        el("unmanage").disabled = !state.devices.find(d => d.pci === el("pci").value)?.key;
+    }
     async function api(action, fields = {}) {
-        const token = typeof csrf_token === "string" ? csrf_token : document.querySelector('input[name=csrf_token]')?.value;
+        const token = root.dataset.csrf;
+        if (!token) throw Error("Unraid did not provide a request token. Reopen this page from Settings.");
         const response = await fetch("/plugins/gpu-switch-manager/api.php", {
-            method: "POST", credentials: "same-origin",
-            body: new URLSearchParams({action, csrf_token: token || "", ...fields})
+            method: "POST", credentials: "same-origin", cache: "no-store", redirect: "manual",
+            headers: {Accept: "application/json"},
+            body: new URLSearchParams({...fields, action, csrf_token: token})
         });
-        const result = await response.json();
-        if (!response.ok) throw Error(result.error || response.statusText);
+        if (response.type === "opaqueredirect" || response.status === 401)
+            throw Error("Your Unraid session requires sign-in. Sign in and reopen this page.");
+        const result = await response.json().catch(() => null);
+        if (!response.ok) {
+            if (response.status === 403 && /^(wrong|missing|uninitialized) csrf_token$/.test(result?.error))
+                throw Error("Unraid rejected the request token. Reopen this page and try again.");
+            throw Error(result?.error || (response.status === 403
+                ? "Unraid denied this request. Check the WebGUI system log for its reason."
+                : "The plugin API returned HTTP " + response.status + "."));
+        }
+        if (result === null) throw Error("The plugin API returned an invalid response. Check the WebGUI system log.");
         return result;
     }
     function table(headers) {
@@ -31,7 +55,8 @@
     }
     function profile() {
         const p = state.config.profiles[el("vm").value];
-        if (p) el("gpu").value = p.gpu;
+        el("gpu").value = p?.gpu || "";
+        el("automatic").checked = p?.automatic ?? true;
         const items = p?.containers || [];
         const names = [...new Set([...items.map(x => x.name), ...(state.containers || [])])];
         const grid = table(["Container", "Switch policy", "Start after (comma-separated names)"]);
@@ -50,31 +75,51 @@
             row.insertCell().append(deps);
         }
         el("workloads").replaceChildren(grid);
+        syncControls();
     }
     function renderDevices(devices) {
-        const grid = table(["GPU / PCI / UUID", "Drivers / IOMMU", "Telemetry", "Ownership", "Containers", "Last operation"]);
+        const grid = table(["GPU / PCI / UUID", "Drivers / IOMMU", "Role", "Owner / VM profiles", "Workloads", "Status", ""]);
+        const labels = {HOST_AVAILABLE: "Available to Unraid", HOST_IN_USE: "In use by host workloads",
+            PREPARING_VM: "Switching to VM", VFIO_BOUND: "Bound to VFIO", VM_ACTIVE: "Assigned to running VM",
+            RESTORING_HOST: "Returning to Unraid", ERROR: "Recovery or review required"};
         for (const d of devices) {
             const row = grid.tBodies[0].insertRow();
             for (const v of [
                 [d.board_vendor, d.model, d.description, d.pci, d.uuid || d.enrolled_uuid].filter(Boolean).join("\n"),
                 Object.entries(d.drivers).map(([a, driver]) => a + " " + driver + " / " + d.groups[a]).join("\n"),
-                [d.temperature, d.utilization, d.memory_used && d.memory_used + " / " + d.memory_total].filter(Boolean).join("\n"),
-                [d.state, d.owner || d.transaction?.vm || (d.drivers[d.pci] === "vfio-pci" ? "VFIO" : "Host"), d.protected ? "Protected" : ""].filter(Boolean).join("\n"),
-                d.containers === null ? "Unavailable" : Object.keys(d.containers).join(", "),
-                d.error || d.transaction?.message || d.last?.message || ""
+                d.key ? (d.protected ? "Protected" : "Shared") : "Unmanaged",
+                [d.owner || d.transaction?.vm || (d.drivers[d.pci] === "vfio-pci" ? "VFIO" : "Host"),
+                    ...Object.keys(state.config.profiles).filter(vm => d.key && state.config.profiles[vm].gpu === d.key)].filter((v, i, a) => a.indexOf(v) === i).join("\n"),
+                [d.containers === null ? "Container data unavailable" : Object.keys(d.containers).join(", "),
+                    d.clients?.length ? d.clients.length + " GPU client(s)" : ""].filter(Boolean).join("\n"),
+                [d.owner ? "Assigned to running VM" : labels[d.state], d.error || d.transaction?.message || d.last?.message].filter(Boolean).join("\n")
             ]) {
                 const cell = row.insertCell();
-                cell.style.whiteSpace = "pre-line";
                 cell.textContent = v;
             }
+            const configure = document.createElement("button");
+            configure.type = "button";
+            configure.textContent = "Configure";
+            configure.onclick = () => {
+                el("pci").value = d.pci;
+                el("pci").onchange();
+                el("key").focus();
+            };
+            row.insertCell().append(configure);
         }
         el("devices").replaceChildren(grid);
+        if (!devices.length) {
+            const empty = document.createElement("p");
+            empty.textContent = "No GPUs to display. Check discovery status and diagnostics.";
+            el("devices").append(empty);
+        }
     }
     async function refresh() {
         state = await api("status");
         renderDevices(state.devices);
         options(el("pci"), state.devices.map(d => d.pci));
         options(el("gpu"), Object.keys(state.config.gpus).filter(k => !state.config.gpus[k].protected));
+        el("gpu").prepend(new Option("Select a shared GPU", ""));
         options(el("vm"), [...new Set([...state.vms, ...Object.keys(state.config.profiles)])]);
         el("enabled").checked = state.config.enabled;
         el("pci").onchange();
@@ -84,9 +129,11 @@
     const show = result => { el("detail").textContent = JSON.stringify(result, null, 2); };
     function button(id, fn) {
         el(id).onclick = async () => {
-            el(id).disabled = true;
+            if (busy) return;
+            busy = true;
+            syncControls();
             try { await fn(); } catch (e) { el("message").textContent = e.message; }
-            finally { el(id).disabled = false; }
+            finally { busy = false; syncControls(); }
         };
     }
     async function mutate(action, fields, prompt) {
@@ -112,15 +159,25 @@
         return mutate("import", {config: JSON.stringify(config), revision: state.revision}, prompt);
     }
     el("vm").onchange = profile;
+    el("gpu").onchange = syncControls;
     el("pci").onchange = () => {
         const d = state.devices.find(d => d.pci === el("pci").value);
         el("key").value = d?.key || "";
         el("role").value = d?.key && !d.protected ? "shared" : "protected";
+        syncControls();
     };
     button("refresh", refresh);
     button("logs", async () => show(await api("logs")));
     button("diag", async () => show(await api("diagnostics")));
     button("enroll", () => mutate("enroll", {key: el("key").value, pci: el("pci").value, role: el("role").value}, "Save this physical GPU identity and protection setting?"));
+    button("unmanage", () => {
+        const key = state.devices.find(d => d.pci === el("pci").value)?.key;
+        if (!key) return;
+        const cfg = structuredClone(state.config);
+        if (Object.values(cfg.profiles).some(p => p.gpu === key)) throw Error("Remove the GPU from its VM profiles before removing enrollment.");
+        delete cfg.gpus[key];
+        return save(cfg, "Remove this GPU’s enrollment and any plugin protection?");
+    });
     button("enable", () => save({...state.config, enabled: el("enabled").checked}, "Change automatic VM switching?"));
     button("save", () => {
         const cfg = structuredClone(state.config);
@@ -129,7 +186,7 @@
             const policy = row.querySelector("select").value;
             if (policy) containers.push({name: row.dataset.name, policy, after: row.querySelector("input").value.split(",").map(x => x.trim()).filter(Boolean)});
         }
-        cfg.profiles[el("vm").value] = {gpu: el("gpu").value, containers};
+        cfg.profiles[el("vm").value] = {gpu: el("gpu").value, automatic: el("automatic").checked, containers};
         return save(cfg, "Save the GPU and container policies for " + el("vm").value + "?");
     });
     button("delete", () => {
@@ -142,23 +199,33 @@
     button("start", () => mutate("start", {vm: el("vm").value}, "Stop assigned workloads and start " + el("vm").value + "?"));
     button("shutdown", () => mutate("shutdown", {vm: el("vm").value}, "Request a graceful shutdown of " + el("vm").value + "?"));
     button("recover", () => mutate("recover", {gpu: el("gpu").value}, "Reconcile the selected GPU and restore recorded containers if safe?"));
-    button("export", async () => {
-        const url = URL.createObjectURL(new Blob([JSON.stringify(await api("export"), null, 2)], {type: "application/json"}));
+    function download(data, filename) {
+        const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], {type: "application/json"}));
         const link = document.createElement("a");
-        link.href = url; link.download = "gpu-sharing.json"; link.click();
+        link.href = url; link.download = filename; link.click();
         setTimeout(() => URL.revokeObjectURL(url), 1000);
-    });
+    }
+    button("export", async () => download(await api("export"), "gpu-sharing.json"));
+    button("download", async () => download({report: await api("diagnostics"), operations: await api("logs")}, "gpu-switch-manager-diagnostics.json"));
     button("import", async () => {
         const file = el("file").files[0];
         if (!file || file.size > 262144) throw Error("Select a configuration file up to 256 KiB");
         await save(JSON.parse(await file.text()), "Replace GPU identities, protection settings and VM profiles with this file?");
     });
-    refresh().catch(e => { el("message").textContent = e.message; });
+    syncControls();
+    el("refresh").click();
     async function liveRefresh() {
         if (!el("devices")) return;
-        if (!document.hidden && el("live").checked) {
-            try { renderDevices((await api("status")).devices); }
-            catch (e) { el("message").textContent = e.message; }
+        if (state && !busy && !document.hidden && el("live").checked) {
+            const previous = state;
+            try {
+                const next = await api("status");
+                if (!busy && previous === state && next.revision === state.revision) {
+                    renderDevices(next.devices);
+                    if (next.errors.length) el("message").textContent = next.errors.join("\n");
+                }
+            }
+            catch (e) { if (!busy && previous === state) el("message").textContent = e.message; }
         }
         setTimeout(liveRefresh, 15000);
     }

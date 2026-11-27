@@ -1,7 +1,6 @@
 name: Publish verified plugin
 on:
   push:
-    branches: [main]
     tags: ['v[0-9]*']
   workflow_dispatch:
 permissions:
@@ -21,13 +20,8 @@ jobs:
           fetch-depth: 0
       - id: version
         run: |
-          if [[ $GITHUB_REF_TYPE == tag ]]; then
-            tag=$GITHUB_REF_NAME
-          else
-            [[ $GITHUB_REF_NAME == main ]]
-            tag=$(python3 tools/release.py tag)
-          fi
-          if ! git show-ref --verify --quiet "refs/tags/$tag"; then git tag "$tag" HEAD; fi
+          [[ $GITHUB_REF_TYPE == tag ]]
+          tag=$GITHUB_REF_NAME
           previous=$(PYTHONPATH=tools python3 -c 'import sys; from pathlib import Path; from versioning import describe; print(describe(Path.cwd(), sys.argv[1]).previous or "-")' "$tag")
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "previous=$previous" >> "$GITHUB_OUTPUT"
@@ -60,9 +54,7 @@ jobs:
           sha256sum -c SHA256SUMS
           cd "$GITHUB_WORKSPACE"
           git merge-base --is-ancestor "$GITHUB_SHA" origin/main
-          if ! git show-ref --verify --quiet "refs/tags/$TAG"; then git tag "$TAG" "$GITHUB_SHA"; fi
           [[ $(git rev-parse "$TAG^{commit}") == "$(git rev-parse "$GITHUB_SHA^{commit}")" ]]
-          git push origin "refs/tags/$TAG"
           cd "$RUNNER_TEMP/release"
           assets=("./gpu-switch-manager-${TAG#v}.txz" ./gpu-switch-manager.plg ./SHA256SUMS ./release.json ./RELEASE-NOTES.md)
           flags=()

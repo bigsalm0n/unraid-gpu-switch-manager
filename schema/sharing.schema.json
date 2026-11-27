@@ -28,6 +28,7 @@
         "type": "object", "additionalProperties": false, "required": ["gpu", "containers"],
         "properties": {
           "gpu": {"$ref": "#/$defs/name"},
+          "automatic": {"type": "boolean"},
           "containers": {"type": "array", "maxItems": 64, "items": {
             "type": "object", "additionalProperties": false, "required": ["name", "policy", "after"],
             "properties": {"name": {"$ref": "#/$defs/name"}, "policy": {"enum": ["restore", "stop", "leave"]},

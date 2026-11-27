@@ -7,15 +7,12 @@ function failRequest(int $status, string $message): void {
     echo json_encode(['error' => $message]);
     exit;
 }
+if (($_SERVER['REQUEST_METHOD'] ?? '') !== 'POST') failRequest(405, 'POST required');
+// WebGUI's auto_prepend_file validates and consumes csrf_token before routing.
+if (!function_exists('csrf_terminate')) failRequest(503, 'Unraid request validation is unavailable');
 if (!isset($_COOKIE[session_name()]) || !session_start(['read_and_close' => true]) ||
     empty($_SESSION['unraid_login']) || ($_SESSION['unraid_user'] ?? '') !== 'root') {
-    failRequest(403, 'Sign in as the Unraid administrator');
-}
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') failRequest(405, 'POST required');
-$vars = @parse_ini_file('/var/local/emhttp/var.ini', false, INI_SCANNER_RAW);
-$token = $vars['csrf_token'] ?? '';
-if ($token === '' || !is_string($_POST['csrf_token'] ?? null) || !hash_equals($token, $_POST['csrf_token'])) {
-    failRequest(403, 'Reload the Unraid page to renew the CSRF token');
+    failRequest(401, 'Sign in as the Unraid administrator, then reopen GPU Switch Manager');
 }
 $action = $_POST['action'] ?? '';
 $commands = ['status' => [], 'diagnostics' => [], 'logs' => [], 'progress' => [], 'export' => [],
@@ -41,14 +38,24 @@ if ($action === 'import') {
     array_push($args, '--revision', $revision);
 }
 set_time_limit(240);
-$proc = proc_open($args, [0 => ['pipe', 'r'], 1 => ['pipe', 'w'], 2 => ['pipe', 'w']], $pipes);
+$stdin = tmpfile();
+$stderr = tmpfile();
+if (!$stdin || !$stderr || fwrite($stdin, $input) !== strlen($input) || !rewind($stdin)) {
+    failRequest(503, 'Unable to prepare the backend request');
+}
+if (!is_executable($args[0])) failRequest(503, 'Backend executable is missing. Check plugin installation.');
+$proc = proc_open($args, [0 => $stdin, 1 => ['pipe', 'w'], 2 => $stderr], $pipes);
 if (!is_resource($proc)) failRequest(503, 'Backend unavailable');
-fwrite($pipes[0], $input);
-fclose($pipes[0]);
 $output = stream_get_contents($pipes[1]);
 fclose($pipes[1]);
-$error = stream_get_contents($pipes[2]);
-fclose($pipes[2]);
-if (proc_close($proc) !== 0) failRequest(409, json_decode($error, true)['error'] ?? 'Backend failed. Inspect diagnostics.');
+$exit = proc_close($proc);
+rewind($stderr);
+$error = stream_get_contents($stderr, 65536);
+fclose($stdin);
+fclose($stderr);
+if ($exit !== 0) {
+    $reason = json_decode($error, true)['error'] ?? null;
+    failRequest(is_string($reason) ? 409 : 502, is_string($reason) ? $reason : 'Backend execution failed. Check the runtime dependencies and system log.');
+}
 if (json_decode($output, true) === null) failRequest(502, 'Invalid backend response');
 echo $output;
