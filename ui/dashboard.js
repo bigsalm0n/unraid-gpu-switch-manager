@@ -54,6 +54,32 @@
         select.replaceChildren(...names.map(x => new Option(x, x)));
         if (names.includes(old)) select.value = old;
     }
+    function updateWorkloads() {
+        if (!state) return;
+        const key = el("gpu").value;
+        const gpu = state.devices.find(device => device.key === key);
+        const detected = gpu?.containers;
+        const vm = el("vm").value;
+        const automatic = state.config.enabled && el("automatic").checked;
+        el("trigger").textContent = vm && key ? vm + " uses " + key + " · " +
+            (automatic ? "Start from VM Manager or here" : "Start from GPU Switch Manager") : "";
+        el("workload-summary").textContent = !key ? "Select a shared GPU to find affected containers." :
+            !detected ? "Live workload detection is unavailable for this GPU." :
+            Object.keys(detected).length ? "Detected GPU workloads appear first. Review their policies before testing the VM." :
+            "No running containers were detected using this GPU.";
+        const body = el("workloads").querySelector("tbody");
+        if (!body) return;
+        const rows = [...body.rows];
+        for (const row of rows) {
+            const name = row.dataset.name;
+            const reasons = detected && Object.hasOwn(detected, name) ? detected[name] : null;
+            const policy = row.querySelector("select").value;
+            row.cells[1].textContent = reasons ? reasons.join(", ") + (policy ? "" : " · Policy required") : "";
+            row.hidden = !reasons && !policy && !el("show-other").checked;
+        }
+        rows.sort((a, b) => Number(Boolean(b.cells[1].textContent)) - Number(Boolean(a.cells[1].textContent)));
+        body.replaceChildren(...rows);
+    }
     function profile() {
         const vm = el("vm").value;
         const p = Object.hasOwn(state.config.profiles, vm) ? state.config.profiles[vm] : null;
@@ -62,22 +88,25 @@
         el("automatic").checked = p?.automatic ?? true;
         const items = p?.containers || [];
         const names = [...new Set([...items.map(x => x.name), ...(state.containers || [])])];
-        const grid = table(["Container", "Switch policy", "Start after (comma-separated names)"]);
+        const grid = table(["Container", "GPU access detected", "Action when VM starts", "Start after (comma-separated names)"]);
         for (const name of names) {
             const row = grid.tBodies[0].insertRow();
             row.dataset.name = name;
             row.insertCell().textContent = name;
+            row.insertCell();
             const policy = document.createElement("select");
-            for (const [k, label] of [["", "Unassigned"], ["restore", "Stop and restore"], ["stop", "Stop only"], ["leave", "Leave running"]])
+            for (const [k, label] of [["", "Unassigned"], ["restore", "Stop and restore"], ["stop", "Stop only"], ["leave", "Leave running"], ["start", "Start with VM (CPU only)"]])
                 policy.add(new Option(label, k));
             const item = items.find(x => x.name === name);
             policy.value = item?.policy || "";
+            policy.onchange = updateWorkloads;
             row.insertCell().append(policy);
             const deps = document.createElement("input");
             deps.value = (item?.after || []).join(", ");
             row.insertCell().append(deps);
         }
         el("workloads").replaceChildren(grid);
+        updateWorkloads();
         syncControls();
     }
     function renderDevices(devices) {
@@ -108,7 +137,19 @@
                 el("pci").onchange();
                 el("key").focus();
             };
-            row.insertCell().append(configure);
+            const actions = row.insertCell();
+            actions.append(configure);
+            if (d.key && !d.protected) {
+                const workloads = document.createElement("button");
+                workloads.type = "button";
+                workloads.textContent = "Review workloads";
+                workloads.onclick = () => {
+                    el("gpu").value = d.key;
+                    el("gpu").onchange();
+                    el("gpu").focus();
+                };
+                actions.append(workloads);
+            }
         }
         el("devices").replaceChildren(grid);
         if (!devices.length) {
@@ -159,7 +200,10 @@
             active = false;
             await refresh();
             show(result);
-            if (action === "start") el(message).textContent = "VM started · " + result.vm;
+            if (action === "start") {
+                el(message).textContent = "VM started · " + result.vm;
+                if (result.warnings?.length) el(message).textContent += " · Container startup: " + result.warnings.join("; ");
+            }
         } finally { active = false; clearTimeout(polling); }
     }
     function save(config, prompt) {
@@ -171,7 +215,9 @@
         el("vm").value = el("saved-profile").value;
         profile();
     }, "vm-message");
-    el("gpu").onchange = syncControls;
+    el("gpu").onchange = () => { updateWorkloads(); syncControls(); };
+    el("show-other").onchange = updateWorkloads;
+    el("automatic").onchange = updateWorkloads;
     el("pci").onchange = () => {
         const d = state.devices.find(d => d.pci === el("pci").value);
         el("key").value = d?.key || "";
@@ -236,7 +282,9 @@
             try {
                 const next = await api("status");
                 if (!busy && previous === state && next.revision === state.revision) {
+                    state.devices = next.devices;
                     renderDevices(next.devices);
+                    updateWorkloads();
                     if (next.errors.length) el("message").textContent = next.errors.join("\n");
                 }
             }

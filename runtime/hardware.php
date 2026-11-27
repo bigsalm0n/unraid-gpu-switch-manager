@@ -321,6 +321,26 @@ class Hardware
         return $visible;
     }
 
+    public function verifyStartupContainer(object $container): void
+    {
+        $host = $container->HostConfig;
+        $visibility = array_map('trim', $this->visible($container));
+        $prefixes = ['/dev', '/sys'];
+        foreach (devicePaths($container) as $path) {
+            $resolved = realpath($path) ?: $path;
+            foreach ($prefixes as $prefix) {
+                ensure($resolved !== '/' && $resolved !== $prefix && !str_starts_with($resolved, $prefix . '/'),
+                    'VM-start container has a host device mapping: ' . $container->Name);
+            }
+        }
+        ensure(empty($host->Privileged) && empty($host->Devices) && empty($host->DeviceRequests)
+            && empty($host->DeviceCgroupRules) && in_array($host->Runtime ?? '', ['', 'runc', 'io.containerd.runc.v2'], true)
+            && !array_diff($visibility, ['', 'none', 'void']),
+            'VM-start container must have no host GPU access: ' . $container->Name);
+        ensure(empty($container->State->Paused) && empty($container->State->Restarting) && empty($host->AutoRemove),
+            'Paused, restarting or auto-remove VM-start container: ' . $container->Name);
+    }
+
     public function selectors(object $container): \stdClass
     {
         $tokens = $this->visible($container);

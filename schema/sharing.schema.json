@@ -31,7 +31,7 @@
           "automatic": {"type": "boolean"},
           "containers": {"type": "array", "maxItems": 64, "items": {
             "type": "object", "additionalProperties": false, "required": ["name", "policy", "after"],
-            "properties": {"name": {"$ref": "#/$defs/name"}, "policy": {"enum": ["restore", "stop", "leave"]},
+            "properties": {"name": {"$ref": "#/$defs/name"}, "policy": {"enum": ["restore", "stop", "leave", "start"]},
               "after": {"type": "array", "items": {"$ref": "#/$defs/name"}}}
           }}
         }

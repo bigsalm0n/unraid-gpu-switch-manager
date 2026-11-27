@@ -334,7 +334,7 @@ function vmAction(Manager $manager, object $cfg, string $action, string $vm): ar
         ensure($journal && $journal->domain === $uid && $journal->state === 'VM_ACTIVE'
             && trim(virsh($manager, 'domstate', $uid)) === 'running',
             'Start issued; verified VM_ACTIVE state unavailable. Inspect diagnostics.');
-        return ['vm' => $vm, 'result' => 'VM_ACTIVE'];
+        return ['vm' => $vm, 'result' => 'VM_ACTIVE', 'warnings' => $journal->startup_warnings ?? []];
     });
 }
 
