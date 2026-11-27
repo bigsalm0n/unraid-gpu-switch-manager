@@ -34,13 +34,13 @@ A profile key is the name you give the GPU in this plugin. It appears in the **S
 ## Create a VM sharing profile
 
 1. In **VM sharing profiles**, select your VM and the **Shared GPU** you enrolled. Leave **Switch when started from VM Manager** unchecked for the first test.
-2. Review the detected workloads listed first and the reason each was flagged. Set a policy for containers that can use the shared GPU and any services that depend on them. Select **Show other containers** to add a service outside the detected list. Containers pinned to your protected GPU can usually stay unassigned. Prefer the NVIDIA UUID in Docker GPU settings. An all-GPU container may need an explicit policy because it can see the shared card.
+2. Review the detected workloads listed first and the reason each was flagged. Set a policy for containers that can use the shared GPU and any services that depend on them. Select **Show possible GPU access and other containers** to review mappings without an open device handle. Use **Add startup container** beside the CPU-only container dropdown to add a service that should start with the VM. Containers pinned to your protected GPU can usually stay unassigned. Prefer the NVIDIA UUID in Docker GPU settings. A device mapping shows possible access. An open device handle blocks switching until the client releases it or the plugin can safely stop the owning container.
 3. Select **Save profile**. With the VM shut down, choose **Add managed devices to VM**. This adds the shared GPU and approved functions to the selected VM's persistent definition. If the plugin reports conflicting PCI assignments, review the existing devices in the Unraid VM editor before trying again.
 4. Select **Validate and dry run**. Review the drivers and container plan. A container with `will_stop: true` is scheduled to stop during the transition. Resolve any reported blocker before starting the guest.
 
 | Container policy | What happens |
 | --- | --- |
-| **Unassigned** | The profile has no policy for this container. If a running container may be using the shared GPU, the dry run can ask you to choose a policy. |
+| **Unassigned** | The profile has no policy for this container. The plugin reports any open handle on the shared GPU and leaves the workload running. |
 | **Stop and restore** | The plugin can stop the container for the VM. It starts the same container again after the GPU returns if the container was running before the switch. |
 | **Stop only** | The plugin can stop the container for the VM. Start it yourself once the GPU has returned. |
 | **Leave running** | The plugin leaves the container running. If it has the shared GPU open, the switch stops at validation and reports the workload. |
@@ -48,7 +48,7 @@ A profile key is the name you give the GPU in this plugin. It appears in the **S
 
 Use **Start after** for container dependencies. For example, if `voice-ui` depends on `voice-engine`, put `voice-engine` in the **Start after** field for `voice-ui`. Keep both containers in the same profile. Separate multiple dependency names with commas. The plugin stops dependent services first and restores their dependencies first.
 
-To reopen a profile, choose it under **Saved profile** and select **Load saved profile**. The VM, GPU and container settings return to their saved values.
+To reopen a profile, choose its VM under **VM profile**. Select **Reload saved profile** to discard edits and read the saved settings again. The VM, GPU and container settings return to their saved values.
 
 ## Test manual switching
 
@@ -65,7 +65,7 @@ Once the manual cycle passes, check **Enable automatic switching** and select **
 | What you see | What to check |
 | --- | --- |
 | The **Shared GPU** list is empty | Verify that discovery found the GPU and that you saved it with the **Shared** role. |
-| A container needs a policy | Check whether it sees the shared GPU, especially if it is configured for all GPUs. Assign the appropriate policy or pin it to the intended GPU by UUID, then rerun the dry run. |
+| A container has an **Open device handle** | Check whether it needs the shared card. Pin it to the intended host GPU by UUID, or configure a stop policy if it is safe to stop. Then rerun the dry run. |
 | A process still has the GPU open | Use **View diagnostics** to identify the client. Close the application or stop the specific workload normally, then rerun the dry run. |
 | The IOMMU group or reset cannot be isolated | Leave the card with the host until you can review the PCI topology. |
 | **Recovery or review required** after shutdown | Confirm the VM is fully off. Use **View diagnostics** and **Operation log** to check driver bindings and the last error. Once the host drivers are back, select the affected **Shared GPU** and choose **Recover selected GPU**. |
