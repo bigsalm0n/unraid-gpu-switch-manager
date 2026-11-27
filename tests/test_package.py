@@ -146,15 +146,16 @@ class Package(unittest.TestCase):
         self.apply()
         self.assertTrue(self.journal.exists())
 
-    def test_image_hook_vetoes_profile_when_runtime_missing(self):
+    def test_image_hook_vetoes_pci_assignment_when_runtime_missing(self):
         self.apply()
         cfg = self.root / "missing-runtime.json"
         write(cfg, {"profiles": {"Windows": {"gpu": "game"}}})
         wrapper = (self.root / HOOK).read_text().replace("/usr/local/lib/gpu-switch-manager/gpuctl", str(self.root / "missing-ctl"))
         wrapper = wrapper.replace("/boot/config/plugins/gpu-switch-manager/sharing.json", str(cfg))
         (self.root / HOOK).write_text(wrapper)
-        for name, expected in (("Windows", 1), ("Control guest", 0)):
-            xml = f"<domain><name>{name}</name><devices/></domain>"
+        pci = "<hostdev type='pci'><source><address domain='0x0000' bus='0x05' slot='0x00' function='0x0'/></source></hostdev>"
+        for name, devices, expected in (("Windows", pci, 1), ("Windows", "", 0), ("Control guest", "", 0)):
+            xml = f"<domain><name>{name}</name><devices>{devices}</devices></domain>"
             p = subprocess.run(["bash", str(self.root / HOOK), name, "prepare", "begin"], input=xml, text=True, capture_output=True)
             self.assertEqual(p.returncode, expected, p.stderr)
             self.assertEqual(p.stdout, "")

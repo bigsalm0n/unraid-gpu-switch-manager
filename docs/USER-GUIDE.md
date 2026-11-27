@@ -58,7 +58,7 @@ To reopen a profile, choose its VM under **VM profile**. Select **Reload saved p
 
 ### Start from the regular VM Manager
 
-Once the manual cycle passes, check **Enable automatic switching** and select **Save switching setting**. For the selected VM, check **Switch when started from VM Manager** and select **Save profile**. Both switches must be enabled for native VM Manager starts. The **Start VM** button in GPU Switch Manager remains available for manual starts.
+Once the manual cycle passes, check **Enable automatic switching** and select **Save switching setting**. For the selected VM, check **Switch when started from VM Manager** and select **Save profile**. Both switches must be enabled for native VM Manager starts. The **Start VM** button in GPU Switch Manager remains available for manual starts with passthrough. To boot the VM without switching the GPU, remove both PCI functions from the guest definition and start it from VM Manager. Its sharing profile stays saved.
 
 ## Troubleshoot a failed transition
 

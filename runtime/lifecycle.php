@@ -100,6 +100,7 @@ final class Manager
 
     private function plan(object $cfg, string $key, object $profile, array $devices): array
     {
+        ensure((bool)$devices, 'The VM has no PCI passthrough devices. Use Add managed devices to VM to enable GPU sharing.');
         $data = $this->target($cfg, $key);
         ensure($devices === array_fill_keys(array_keys($data['drivers']), true),
             'VM must have managed VFIO hostdev entries for exactly the approved PCI functions');
@@ -392,6 +393,12 @@ final class Manager
             }
             $key = $cfg->profiles->$vm->gpu;
             $this->s->locked('gpu-' . $key, function () use ($cfg, $key, $vm, $uid, $event, $devices) {
+                $journal = $this->lease($key, $cfg);
+                $sameDomain = $journal && $journal->vm === $vm && $journal->domain === $uid;
+                // A saved profile does not attach PCI devices to a native VM start.
+                if (!$devices && !$sameDomain) {
+                    return;
+                }
                 if ($event === 'prepare') {
                     try {
                         $this->prepare($cfg, $key, $vm, $uid, $devices);
@@ -401,8 +408,7 @@ final class Manager
                     }
                     return;
                 }
-                $journal = $this->lease($key, $cfg);
-                if (!$journal || $journal->vm !== $vm || $journal->domain !== $uid) {
+                if (!$sameDomain) {
                     ensure($event === 'release', 'Startup has no matching prepared transaction');
                     return;
                 }

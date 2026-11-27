@@ -16,6 +16,8 @@ if [[ $2 == release ]]; then exit 0; fi
 exec /usr/bin/php -d auto_prepend_file=none -r '
 $xml = simplexml_load_file("php://stdin", "SimpleXMLElement", LIBXML_NONET);
 if ($xml === false) exit(1);
+$pci = $xml->xpath("/domain/devices/hostdev[@type=\"pci\"] | /domain/devices/interface[@type=\"hostdev\"]");
+if (!$pci) exit(0);
 $cfg = json_decode(@file_get_contents("/boot/config/plugins/gpu-switch-manager/sharing.json") ?: "{}", true);
 $affected = isset($cfg["profiles"][$argv[1]]);
 foreach ($xml->xpath("/domain/devices/hostdev[@type=\"pci\"]/source/address | /domain/devices/interface[@type=\"hostdev\"]/source/address") as $a) {
