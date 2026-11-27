@@ -110,8 +110,6 @@ final class Manager
         ensure(!array_diff_key($configured, $containers), 'Configured container is missing');
         $clients = $this->hw->clients($data);
         $found = $this->hw->assignments($data, $containers, $clients);
-        $unknown = array_filter(array_diff_key($found, $configured), fn($name) => running($containers[$name]), ARRAY_FILTER_USE_KEY);
-        ensure(!$unknown, 'Set an explicit policy for potential GPU containers: ' . implode(', ', array_keys($unknown)));
         $candidates = array_filter($configured, fn($item) => in_array($item->policy, ['restore', 'stop'], true) && running($containers[$item->name]));
         $stopping = array_intersect_key($candidates, $found);
         $candidatePids = null;
@@ -132,7 +130,9 @@ final class Manager
         };
         foreach ($clients as $pid) {
             $owner = $ownerOf($pid);
-            ensure($owner !== null && isset($candidates[$owner]), 'Target has an unquiesced client PID ' . $pid);
+            $client = $owner === null ? 'PID ' . $pid : $owner . ' (PID ' . $pid . ')';
+            ensure($owner !== null && isset($candidates[$owner]),
+                'Target has an unquiesced client: ' . $client . ' has the shared GPU open. Release its device handles before starting the VM.');
             $stopping[$owner] = $candidates[$owner];
         }
         foreach ($items as $item) {

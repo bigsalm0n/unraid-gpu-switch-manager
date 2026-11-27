@@ -1,4 +1,4 @@
-<link rel="stylesheet" href="/plugins/gpu-switch-manager/dashboard.css">
+<link rel="stylesheet" href="/plugins/gpu-switch-manager/dashboard.css?v=<?= hash_file("sha256", __DIR__ . "/dashboard.css") ?>">
 <section id="gsm" data-csrf="<?= htmlspecialchars((string)($var['csrf_token'] ?? ''), ENT_QUOTES, 'UTF-8') ?>">
   <p id="gsm-message" role="status" aria-live="polite">Reading hardware and profiles…</p>
   <h3>GPU overview</h3>
@@ -16,15 +16,17 @@
   <h3>VM sharing profiles</h3>
   <label><input id="gsm-enabled" type="checkbox"> Enable automatic switching</label>
   <button type="button" id="gsm-enable">Save switching setting</button>
-  <div class="gsm-fields">
-  <label>Saved profile <select id="gsm-saved-profile"></select></label>
-  <button type="button" id="gsm-load-profile">Load saved profile</button></div>
-  <div class="gsm-fields"><label>VM <select id="gsm-vm"></select></label>
+  <div class="gsm-fields"><label>VM profile <select id="gsm-vm"></select></label>
+  <button type="button" id="gsm-load-profile">Reload saved profile</button>
   <label>Shared GPU <select id="gsm-gpu"></select></label>
   <label><input id="gsm-automatic" type="checkbox"> Switch when started from VM Manager</label></div>
   <p id="gsm-trigger"></p>
   <p id="gsm-workload-summary"></p>
-  <label><input id="gsm-show-other" type="checkbox"> Show other containers</label>
+  <div class="gsm-fields">
+  <label>Start a CPU-only container with this VM <select id="gsm-start-container"></select></label>
+  <button type="button" id="gsm-add-start-container">Add startup container</button>
+  </div>
+  <label><input id="gsm-show-other" type="checkbox"> Show possible GPU access and other containers</label>
   <div id="gsm-workloads"></div>
   <button type="button" id="gsm-save">Save profile</button>
   <button type="button" id="gsm-delete">Delete profile</button>
@@ -45,4 +47,4 @@
   <button type="button" id="gsm-download">Download diagnostics</button>
   <pre id="gsm-detail" aria-live="polite"></pre>
 </section>
-<script defer src="/plugins/gpu-switch-manager/dashboard.js"></script>
+<script defer src="/plugins/gpu-switch-manager/dashboard.js?v=<?= hash_file("sha256", __DIR__ . "/dashboard.js") ?>"></script>

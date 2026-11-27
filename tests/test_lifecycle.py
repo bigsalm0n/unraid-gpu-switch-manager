@@ -242,9 +242,14 @@ class LifecycleTests(Rig):
                 self.m.hook("Other", "prepare", "begin", self.xml("Other", pci))
         self.assertFalse(self.ops)
 
-    def test_all_gpu_container_needs_policy(self):
+    def test_potential_gpu_access_without_open_handles_does_not_require_a_policy(self):
         self.cs["infer"]["Config"]["Env"] = ["NVIDIA_VISIBLE_DEVICES=all"]
-        with self.assertRaisesRegex(Refused, "infer"):
+        self.hook("prepare")
+        self.assertEqual(self.ops, [("stop", "dependent"), ("stop", "voice")])
+
+    def test_unconfigured_container_with_open_handle_is_named(self):
+        self.client(102, "infer", self.gaming)
+        with self.assertRaisesRegex(Refused, r"infer \(PID 102\) has the shared GPU open"):
             self.hook("prepare")
         self.assertFalse(self.ops)
 
