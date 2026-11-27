@@ -84,6 +84,8 @@ class Rig(unittest.TestCase):
             self.cs[n] = {"Id": ("%064x" % (i + 1)), "Name": "/" + n, "State": {"Running": active},
                           "Config": {"Env": ["NVIDIA_VISIBLE_DEVICES=" + self.uuids[pci]] if pci else []}, "HostConfig": {}}
         self.client(101, "infer", self.ai)
+        self.client(103, "voice", self.gaming)
+        self.released_clients = {103: "voice"}
         cfg = copy.deepcopy(DEFAULT)
         cfg["enabled"] = True
         cfg["gpus"] = {"ai": self.hw.snapshot(self.ai, True), "game": self.hw.snapshot(self.gaming, False)}
@@ -135,6 +137,11 @@ class Rig(unittest.TestCase):
         if args[1] == "stop" and self.stop_fails and name == "voice":
             raise Refused("Container stop failed")
         self.cs[name]["State"]["Running"] = args[1] == "start"
+        if args[1] == "stop":
+            for pid, owner in self.released_clients.items():
+                if owner == name:
+                    self.procs.pop(pid, None)
+                    (self.hw.proc / str(pid) / "fd/3").unlink(missing_ok=True)
         return ""
 
     def xml(self, vm="Windows", pci=None):
@@ -245,7 +252,7 @@ class LifecycleTests(Rig):
         cards = self.hw.discover()
         self.assertEqual(len(cards), 2)
         self.assertEqual(self.hw.clients(cards[0]), [101])
-        self.assertEqual(self.hw.clients(cards[1]), [])
+        self.assertEqual(self.hw.clients(cards[1]), [103])
         self.assertEqual(set(cards[1]["groups"].values()), {"45", "46"})
         self.hook("prepare")
         self.assertEqual(self.ops, [("stop", "dependent"), ("stop", "voice")])
@@ -283,7 +290,7 @@ class LifecycleTests(Rig):
 
     def test_protected_gpu_work_cannot_be_stopped(self):
         self.client(102, "voice", self.ai)
-        with self.assertRaisesRegex(Refused, "another GPU"):
+        with self.assertRaisesRegex(Refused, r"voice \(PID 102\) has another GPU open"):
             self.hook("prepare")
         self.assertFalse(self.ops)
 
@@ -387,7 +394,8 @@ class LifecycleTests(Rig):
         items = self.cfg["profiles"]["Windows"]["containers"]
         next(i for i in items if i["name"] == "voice")["policy"] = "stop"
         next(i for i in items if i["name"] == "dependent")["after"] = []
-        self.cs["dependent"]["Config"]["Env"] = ["NVIDIA_VISIBLE_DEVICES=" + self.uuids[self.gaming]]
+        self.client(104, "dependent", self.gaming)
+        self.released_clients[104] = "dependent"
         items.append(dict(name="infer", policy="leave", after=[]))
         self.store.change(self.cfg)
         self.hook("prepare")
@@ -395,6 +403,18 @@ class LifecycleTests(Rig):
         self.assertEqual(self.ops[-1], ("start", "dependent"))
         self.assertNotIn(("start", "voice"), self.ops)
         self.assertNotIn(("stop", "infer"), self.ops)
+
+    def test_gpu_visibility_only_is_not_a_stop_even_with_a_policy(self):
+        self.cs["infer"]["Config"]["Env"] = ["NVIDIA_VISIBLE_DEVICES=all"]
+        self.cfg["profiles"]["Windows"]["containers"].append(dict(name="infer", policy="restore", after=[]))
+        self.store.change(self.cfg)
+        self.hook("prepare")
+        self.hook("release")
+        self.assertTrue(self.cs["infer"]["State"]["Running"])
+        self.assertFalse(any(name == "infer" for _, name in self.ops))
+        messages = [record["message"] for record in self.dispatch("logs")]
+        self.assertIn("Stopped container: voice", messages)
+        self.assertIn("Restarted container: voice", messages)
 
     def test_configured_unrelated_container_is_left_running(self):
         self.cfg["profiles"]["Windows"]["containers"].append(dict(name="infer", policy="stop", after=[]))
