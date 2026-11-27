@@ -13,7 +13,7 @@ In Unraid, open **Plugins → Install Plugin**, paste this URL and select **Inst
 https://raw.githubusercontent.com/bigsalm0n/unraid-gpu-switch-manager/main/gpu-switch-manager.plg
 ```
 
-The release pipeline records the verified tag and its installer here.
+Current build **2026.11.27-rc.2** · [Release notes](https://github.com/bigsalm0n/unraid-gpu-switch-manager/releases/tag/v2026.11.27-rc.2) · [Version-pinned installer](https://github.com/bigsalm0n/unraid-gpu-switch-manager/releases/download/v2026.11.27-rc.2/gpu-switch-manager.plg)
 <!-- latest-install:end -->
 
 The URL tracks the latest verified build, including release candidates. The manifest embeds the package and checks its SHA-256 during installation.
