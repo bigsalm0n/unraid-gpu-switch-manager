@@ -23,6 +23,7 @@ class Element {
     createTBody() { this.tBodies = [new Element()]; }
     insertRow() { const row = new Element(); this.append(row); return row; }
     insertCell() { const cell = new Element(); this.append(cell); return cell; }
+    get options() { return this.children; }
     get cells() { return this.children; }
     get rows() { return this.children; }
     querySelector(tag) {
@@ -115,17 +116,19 @@ test("loads a saved VM profile and displays a refused start beside the controls"
             profiles: {Gaming: {gpu: "game", automatic: false, containers: [{name: "voice", policy: "restore", after: []}]}}}
     };
     const refusal = "PCI function 0000:05:00.1 is already bound to VFIO.";
-    const {elements, calls} = fixture([response(200, payload), response(200, {}), response(409, {error: refusal})]);
+    const {elements, calls} = fixture([response(200, payload), response(200, payload), response(200, {}), response(409, {error: refusal})]);
     await tick();
-    elements["gsm-saved-profile"].value = "Gaming";
-    elements["gsm-saved-profile"].onchange();
+    elements["gsm-vm"].value = "Gaming";
+    elements["gsm-vm"].onchange();
+    elements["gsm-gpu"].value = "";
     await elements["gsm-load-profile"].click();
     assert.equal(elements["gsm-vm"].value, "Gaming");
     assert.equal(elements["gsm-gpu"].value, "game");
     assert.equal(elements["gsm-automatic"].checked, false);
     assert.equal(elements["gsm-workloads"].children[0].tBodies[0].children[0].children[2].children[0].value, "restore");
     await elements["gsm-start"].click();
-    assert.equal(calls[2].request.body.get("vm"), "Gaming");
+    assert.equal(calls[1].request.body.get("action"), "status");
+    assert.equal(calls[3].request.body.get("vm"), "Gaming");
     assert.equal(elements["gsm-vm-message"].textContent, refusal);
 });
 
@@ -145,14 +148,18 @@ test("shows detected workloads for the selected GPU and keeps other containers a
     elements["gsm-gpu"].onchange();
     const rows = () => elements["gsm-workloads"].querySelector("tbody").rows;
     assert.equal(rows()[0].dataset.name, "voice");
-    assert.match(rows()[0].cells[1].textContent, /active client · Policy required/);
+    assert.match(rows()[0].cells[1].textContent, /Open device handle/);
     assert.match(elements["gsm-trigger"].textContent, /Gaming uses game/);
     assert.equal(rows().find(row => row.dataset.name === "helper").hidden, true);
     elements["gsm-show-other"].checked = true;
     elements["gsm-show-other"].onchange();
     assert.equal(rows().find(row => row.dataset.name === "helper").hidden, false);
-    assert.ok(rows().find(row => row.dataset.name === "helper").querySelector("select").children.some(option => option.value === "start"));
+    elements["gsm-start-container"].value = "helper";
+    elements["gsm-start-container"].onchange();
+    await elements["gsm-add-start-container"].click();
+    assert.equal(rows().find(row => row.dataset.name === "helper").querySelector("select").value, "start");
     elements["gsm-gpu"].value = "other";
     elements["gsm-gpu"].onchange();
     assert.equal(rows()[0].dataset.name, "media");
+    assert.match(rows()[0].cells[1].textContent, /Possible access · visible all/);
 });

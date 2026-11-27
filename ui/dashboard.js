@@ -11,7 +11,8 @@
         if (!state || busy) return;
         for (const id of ["save", "delete", "assign", "dry", "start", "shutdown"])
             el(id).disabled = !el("vm").value || (id === "save" && !el("gpu").value);
-        el("load-profile").disabled = !el("saved-profile").value;
+        el("load-profile").disabled = !Object.hasOwn(state.config.profiles, el("vm").value);
+        el("add-start-container").disabled = !el("vm").value || !el("gpu").value || !el("start-container").value;
         el("recover").disabled = !el("gpu").value;
         el("enroll").disabled = !el("pci").value;
         el("unmanage").disabled = !state.devices.find(d => d.pci === el("pci").value)?.key;
@@ -63,21 +64,25 @@
         const automatic = state.config.enabled && el("automatic").checked;
         el("trigger").textContent = vm && key ? vm + " uses " + key + " · " +
             (automatic ? "Start from VM Manager or here" : "Start from GPU Switch Manager") : "";
+        const activeCount = Object.values(detected || {}).filter(reasons => reasons.includes("active client")).length;
         el("workload-summary").textContent = !key ? "Select a shared GPU to find affected containers." :
             !detected ? "Live workload detection is unavailable for this GPU." :
-            Object.keys(detected).length ? "Detected GPU workloads appear first. Review their policies before testing the VM." :
-            "No running containers were detected using this GPU.";
+            activeCount ? activeCount + " container(s) have this GPU open." :
+            "No running containers have this GPU open.";
         const body = el("workloads").querySelector("tbody");
         if (!body) return;
         const rows = [...body.rows];
         for (const row of rows) {
             const name = row.dataset.name;
             const reasons = detected && Object.hasOwn(detected, name) ? detected[name] : null;
+            const active = Boolean(reasons?.includes("active client"));
             const policy = row.querySelector("select").value;
-            row.cells[1].textContent = reasons ? reasons.join(", ") + (policy ? "" : " · Policy required") : "";
-            row.hidden = !reasons && !policy && !el("show-other").checked;
+            row.dataset.access = active ? "2" : reasons ? "1" : "0";
+            row.cells[1].textContent = active ? "Open device handle" :
+                reasons ? "Possible access · " + reasons.join(", ") : "";
+            row.hidden = !active && !policy && !el("show-other").checked;
         }
-        rows.sort((a, b) => Number(Boolean(b.cells[1].textContent)) - Number(Boolean(a.cells[1].textContent)));
+        rows.sort((a, b) => Number(b.dataset.access) - Number(a.dataset.access));
         body.replaceChildren(...rows);
     }
     function profile() {
@@ -164,10 +169,9 @@
         options(el("pci"), state.devices.map(d => d.pci));
         options(el("gpu"), Object.keys(state.config.gpus).filter(k => !state.config.gpus[k].protected));
         el("gpu").prepend(new Option("Select a shared GPU", ""));
-        options(el("vm"), [...new Set([...state.vms, ...Object.keys(state.config.profiles)])]);
-        options(el("saved-profile"), Object.keys(state.config.profiles));
-        if (!Object.keys(state.config.profiles).length)
-            el("saved-profile").replaceChildren(new Option("No saved profiles", ""));
+        options(el("vm"), [...new Set([...Object.keys(state.config.profiles), ...state.vms])]);
+        options(el("start-container"), ["", ...((state.containers || []).slice().sort())]);
+        el("start-container").options[0].text = "Select a container";
         el("enabled").checked = state.config.enabled;
         el("pci").onchange();
         el("message").textContent = state.errors.join("\n") || "Discovery complete" + (state.release ? " · " + state.release.version : "");
@@ -210,10 +214,17 @@
         return mutate("import", {config: JSON.stringify(config), revision: state.revision}, prompt);
     }
     el("vm").onchange = profile;
-    el("saved-profile").onchange = syncControls;
-    button("load-profile", () => {
-        el("vm").value = el("saved-profile").value;
-        profile();
+    button("load-profile", refresh, "vm-message");
+    el("start-container").onchange = syncControls;
+    button("add-start-container", () => {
+        const name = el("start-container").value;
+        const row = [...el("workloads").querySelector("tbody").rows].find(row => row.dataset.name === name);
+        if (!row) throw Error("Container list changed. Refresh and try again.");
+        const policy = row.querySelector("select");
+        if (policy.value && policy.value !== "start") throw Error("Clear the existing action for " + name + " first.");
+        policy.value = "start";
+        updateWorkloads();
+        el("vm-message").textContent = name + " added to this profile. Select Save profile to keep the change.";
     }, "vm-message");
     el("gpu").onchange = () => { updateWorkloads(); syncControls(); };
     el("show-other").onchange = updateWorkloads;
