@@ -79,7 +79,8 @@ final class Manager
             $row = $journal->containers[$index];
             ensure($row instanceof \stdClass && ($row->name ?? null) === $item->name && ($row->policy ?? null) === $item->policy
                 && matches($row->id ?? null, '[0-9a-f]{64}') && is_bool($row->running ?? null)
-                && is_bool($row->attempted ?? null) && ($row->selectors ?? null) instanceof \stdClass,
+                && is_bool($row->attempted ?? null) && ($row->selectors ?? null) instanceof \stdClass
+                && ($row->policy !== 'start' || is_bool($row->vm_start_attempted ?? null)),
                 'Invalid container snapshot');
         }
         return $journal;
@@ -111,7 +112,7 @@ final class Manager
         $found = $this->hw->assignments($data, $containers, $clients);
         $unknown = array_filter(array_diff_key($found, $configured), fn($name) => running($containers[$name]), ARRAY_FILTER_USE_KEY);
         ensure(!$unknown, 'Set an explicit policy for potential GPU containers: ' . implode(', ', array_keys($unknown)));
-        $candidates = array_filter($configured, fn($item) => $item->policy !== 'leave' && running($containers[$item->name]));
+        $candidates = array_filter($configured, fn($item) => in_array($item->policy, ['restore', 'stop'], true) && running($containers[$item->name]));
         $stopping = array_intersect_key($candidates, $found);
         $candidatePids = null;
         $ownerOf = function (int $pid) use ($containers, $candidates, &$candidatePids): ?string {
@@ -155,12 +156,23 @@ final class Manager
         foreach ($items as $item) {
             $container = $containers[$item->name];
             $willStop = isset($stopping[$item->name]);
+            $willStart = $item->policy === 'start' && !running($container);
+            if ($item->policy === 'start') {
+                $this->hw->verifyStartupContainer($container);
+                if ($willStart) {
+                    foreach ($item->after as $dependency) {
+                        ensure(!isset($stopping[$dependency]) && (running($containers[$dependency])
+                            || $configured[$dependency]->policy === 'start'), 'VM-start dependency will not be running: ' . $dependency);
+                    }
+                }
+            }
             if ($willStop) {
                 ensure(empty($container->State->Paused) && empty($container->State->Restarting)
                     && empty($container->HostConfig->AutoRemove), 'Paused, restarting or auto-remove container: ' . $item->name);
             }
             $rows[] = (object)['name' => $item->name, 'policy' => $item->policy, 'id' => $container->Id,
                 'running' => running($container), 'attempted' => false, 'will_stop' => $willStop,
+                'will_start' => $willStart, 'vm_start_attempted' => false,
                 'selectors' => $item->policy === 'restore' && $willStop ? $this->hw->selectors($container) : (object)[]];
         }
         return [$data, $rows];
@@ -236,6 +248,46 @@ final class Manager
             ensure(running($container) === $expected, 'Unexpected running state for ' . $row->name);
         }
         return $container;
+    }
+
+    private function startVmWorkloads(string $key, object $journal, object $profile): void
+    {
+        $rows = array_column($journal->containers, null, 'name');
+        $deadline = hrtime(true) + 45_000_000_000;
+        $warnings = [];
+        foreach (ordered($profile->containers) as $item) {
+            $row = $rows[$item->name];
+            if ($item->policy !== 'start' || $row->running || $row->vm_start_attempted) {
+                continue;
+            }
+            if (hrtime(true) >= $deadline - 12_000_000_000) {
+                $warnings[] = 'VM-start workload time limit reached at ' . $row->name;
+                break;
+            }
+            try {
+                $this->checkArray();
+                $container = $this->checkContainer($row);
+                $this->hw->verifyStartupContainer($container);
+                if (running($container)) {
+                    continue;
+                }
+                foreach ($item->after as $dependency) {
+                    $this->checkContainer($rows[$dependency], true);
+                }
+                ensure(hrtime(true) < $deadline - 12_000_000_000, 'Workload startup timed out');
+                $row->vm_start_attempted = true;
+                writeJson($this->s->journal($key), $journal);
+                $this->hw->run(['docker', 'start', $row->id], 12);
+                $this->checkContainer($row, true);
+                $this->s->log($key, $journal->vm, 'VM_ACTIVE', 'Started VM workload: ' . $row->name);
+            } catch (\Throwable $error) {
+                $warnings[] = $row->name . ': ' . $error->getMessage();
+            }
+        }
+        if ($warnings) {
+            $journal->startup_warnings = $warnings;
+            $this->record($key, $journal, 'VM_ACTIVE', 'VM running. Container startup failed: ' . implode('; ', $warnings));
+        }
     }
 
     public function restore(string $key, object $journal): void
@@ -365,7 +417,10 @@ final class Manager
                     if ($event === 'start') {
                         $this->record($key, $journal, 'VFIO_BOUND', 'All approved functions use VFIO before guest launch');
                     } else {
-                        $this->record($key, $journal, 'VM_ACTIVE', 'Libvirt started guest and all functions use VFIO');
+                        if ($journal->state !== 'VM_ACTIVE') {
+                            $this->record($key, $journal, 'VM_ACTIVE', 'Libvirt started guest and all functions use VFIO');
+                            $this->startVmWorkloads($key, $journal, $cfg->profiles->$vm);
+                        }
                     }
                 } catch (\Throwable $error) {
                     $this->record($key, $journal, 'ERROR', $error->getMessage());

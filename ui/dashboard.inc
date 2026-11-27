@@ -22,6 +22,9 @@
   <div class="gsm-fields"><label>VM <select id="gsm-vm"></select></label>
   <label>Shared GPU <select id="gsm-gpu"></select></label>
   <label><input id="gsm-automatic" type="checkbox"> Switch when started from VM Manager</label></div>
+  <p id="gsm-trigger"></p>
+  <p id="gsm-workload-summary"></p>
+  <label><input id="gsm-show-other" type="checkbox"> Show other containers</label>
   <div id="gsm-workloads"></div>
   <button type="button" id="gsm-save">Save profile</button>
   <button type="button" id="gsm-delete">Delete profile</button>
