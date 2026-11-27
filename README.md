@@ -10,10 +10,10 @@ For the current repository build, install the verified local manifest using the 
 
 <!-- latest-install:begin -->
 ```text
-https://raw.githubusercontent.com/bigsalm0n/unraid-gpu-switch-manager/main/gpu-switch-manager.plg
+https://raw.githubusercontent.com/bigsalm0n/unraid-gpu-switch-manager/release-installer/gpu-switch-manager.plg
 ```
 
-Current build **2026.11.27-rc.6** · [Release notes](https://github.com/bigsalm0n/unraid-gpu-switch-manager/releases/tag/v2026.11.27-rc.6) · [Version-pinned installer](https://github.com/bigsalm0n/unraid-gpu-switch-manager/releases/download/v2026.11.27-rc.6/gpu-switch-manager.plg)
+Current build **2026.11.27-rc.8** · [Release notes](https://github.com/bigsalm0n/unraid-gpu-switch-manager/releases/tag/v2026.11.27-rc.8) · [Version-pinned installer](https://github.com/bigsalm0n/unraid-gpu-switch-manager/releases/download/v2026.11.27-rc.8/gpu-switch-manager.plg)
 <!-- latest-install:end -->
 
 Merges to protected `main` that change plugin or build files publish a candidate after CI verifies the build. CI advances the rolling installer on `release-installer`. The stable channel is `https://github.com/bigsalm0n/unraid-gpu-switch-manager/releases/latest/download/gpu-switch-manager.plg` once a stable release is published. Installed plugins use their manifest's channel when you select **Plugins → Check for Updates**. Stable releases have the highest version suffix for their date. The manifest embeds the package for offline installation and verifies its SHA-256 before extraction.
