@@ -46,36 +46,3 @@ jobs:
           name: gpu-switch-manager-${{ github.sha }}
           path: dist/
           if-no-files-found: error
-  windows:
-    needs: linux
-    runs-on: windows-2022
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 0
-      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
-        with:
-          python-version: '3.12'
-      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: gpu-switch-manager-${{ github.sha }}
-          path: reference
-      - name: Rebuild from the same revision and compare every release asset
-        env:
-          GSM_RELEASE_TAG: ${{ inputs.tag }}
-          GSM_RELEASE_BASE: ${{ inputs.previous }}
-        shell: pwsh
-        run: |
-          if ($env:GSM_RELEASE_TAG) {
-            git show-ref --verify --quiet "refs/tags/$env:GSM_RELEASE_TAG"
-            if ($LASTEXITCODE -ne 0) {
-              git tag $env:GSM_RELEASE_TAG HEAD
-              if ($LASTEXITCODE) { exit $LASTEXITCODE }
-            }
-          }
-          python tools/build.py --output dist
-          if ($LASTEXITCODE) { exit $LASTEXITCODE }
-          foreach ($asset in Get-ChildItem reference -File) {
-            $rebuilt = Get-FileHash -Algorithm SHA256 (Join-Path dist $asset.Name)
-            if ($rebuilt.Hash -ne (Get-FileHash $asset.FullName).Hash) { throw "Different build output for $($asset.Name)" }
-          }

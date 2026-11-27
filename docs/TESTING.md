@@ -11,7 +11,7 @@ GSM_LEGACY_TEST_TXZ="$fixture" bash tools/check.sh
 rm -f -- "$fixture"
 ```
 
-The check runs Bash, PHP and JavaScript syntax checks, ShellCheck, dashboard initialization and error tests, JSON Schema and backend validation, the unit suite, two independent package builds and checksum verification. CI uses the same entry point and checks Windows output against the Linux bundle. The release workflow publishes a pushed tag after both jobs pass and verifies its public install URL.
+The check runs Bash, PHP and JavaScript syntax checks, ShellCheck, dashboard initialization and error tests, JSON Schema and backend validation, the unit suite, two independent package builds and checksum verification. Linux CI uses the same entry point. The release workflow publishes after the Linux checks pass and verifies the public install URL.
 
 | Concern | Automated evidence |
 | --- | --- |

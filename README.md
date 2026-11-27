@@ -10,10 +10,10 @@ For the current repository build, install the verified local manifest using the 
 
 <!-- latest-install:begin -->
 ```text
-https://raw.githubusercontent.com/bigsalm0n/unraid-gpu-switch-manager/main/gpu-switch-manager.plg
+https://raw.githubusercontent.com/bigsalm0n/unraid-gpu-switch-manager/release-installer/gpu-switch-manager.plg
 ```
 
-Current build **2026.11.27-rc.6** · [Release notes](https://github.com/bigsalm0n/unraid-gpu-switch-manager/releases/tag/v2026.11.27-rc.6) · [Version-pinned installer](https://github.com/bigsalm0n/unraid-gpu-switch-manager/releases/download/v2026.11.27-rc.6/gpu-switch-manager.plg)
+Current build **2026.11.27-rc.8** · [Release notes](https://github.com/bigsalm0n/unraid-gpu-switch-manager/releases/tag/v2026.11.27-rc.8) · [Version-pinned installer](https://github.com/bigsalm0n/unraid-gpu-switch-manager/releases/download/v2026.11.27-rc.8/gpu-switch-manager.plg)
 <!-- latest-install:end -->
 
 Merges to protected `main` that change plugin or build files publish a candidate after CI verifies the build. CI advances the rolling installer on `release-installer`. The stable channel is `https://github.com/bigsalm0n/unraid-gpu-switch-manager/releases/latest/download/gpu-switch-manager.plg` once a stable release is published. Installed plugins use their manifest's channel when you select **Plugins → Check for Updates**. Stable releases have the highest version suffix for their date. The manifest embeds the package for offline installation and verifies its SHA-256 before extraction.
@@ -64,6 +64,6 @@ Copy the verified `dist/gpu-switch-manager.plg` to `/tmp/gpu-switch-manager.plg`
 plugin install /tmp/gpu-switch-manager.plg
 ```
 
-Merges to `main` publish a candidate after Linux tests and a byte-for-byte Windows rebuild. An explicit `vYYYY.MM.DD-rc.N` tag can also trigger a candidate build. A pushed `vYYYY.MM.DD` tag publishes an accepted revision on the stable channel. Both use Git-generated release notes. Verify hardware acceptance and redistribution rights before pushing a stable release tag.
+Merges to `main` publish a candidate after the Linux test suite and reproducible package checks. An explicit `vYYYY.MM.DD-rc.N` tag can also trigger a candidate build. A pushed `vYYYY.MM.DD` tag publishes an accepted revision on the stable channel. Both use Git-generated release notes. Verify hardware acceptance and redistribution rights before pushing a stable release tag.
 
 The technical references cover [ownership and lifecycle](docs/ARCHITECTURE.md), [the legacy audit and redistribution status](docs/AUDIT.md), and [automated tests and hardware acceptance](docs/TESTING.md).

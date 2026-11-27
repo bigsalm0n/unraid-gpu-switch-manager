@@ -59,25 +59,20 @@ def describe(root, requested=None, previous_override=None):
         timestamp = int(git(root, "show", "-s", "--format=%ct", "HEAD"))
         stamp = datetime.fromtimestamp(timestamp, timezone.utc).strftime("%Y.%m.%d")
         version, plugin_version, channel = f"{stamp}-dev.{commit[:12]}", stamp + ".0000", "development"
-    # Walk first-parent history to select the nearest earlier release. Stable
-    # notes cover the whole series, including changes introduced in earlier RCs.
-    history = git(root, "log", "--decorate=short", "--first-parent", "--format=%H%x09%D", "HEAD").splitlines()
-    previous = ""
-    for line in history[1:]:
-        sha, _, decoration = line.partition("\t")
-        candidates = [s[5:] for s in decoration.split(", ") if s.startswith("tag: ") and TAG.fullmatch(s[5:])]
-        if channel == "stable":
-            candidates = [t for t in candidates if versions(t)[2] == "stable"]
-        if candidates:
-            previous = max(candidates, key=lambda t: versions(t)[1])
-            break
-        if sha == LEGACY_BASE:
-            previous = sha
-            break
+    # A published tag can live on the second parent of a pull request merge.
+    reachable = [name for name in git(root, "tag", "--merged", "HEAD").splitlines()
+                 if TAG.fullmatch(name) and name not in tags]
+    eligible = [name for name in reachable
+                if (not tag or versions(name)[1] < plugin_version)
+                and (channel != "stable" or versions(name)[2] == "stable")]
+    previous = max(eligible, key=lambda name: versions(name)[1], default="")
+    if not previous and LEGACY_BASE in git(root, "rev-list", "HEAD").splitlines():
+        previous = LEGACY_BASE
     if previous_override is not None:
         previous = previous_override if previous_override != "-" else ""
     span = f"{previous}..HEAD" if previous else "HEAD"
-    changes = git(root, "log", "--reverse", "--no-merges", "--format=%s%x09%H", span).splitlines()
+    changes = git(root, "log", "--reverse", "--no-merges", "--format=%s%x09%H", span,
+                  "--", ".", ":(exclude)gpu-switch-manager.plg", ":(exclude)README.md").splitlines()
     heading = {"candidate": "Release candidate", "stable": "Release", "development": "Development build"}[channel]
     lines = [f"# {heading} {version}", "", f"Source commit \x60{commit}\x60. Unraid package version \x60{plugin_version}\x60.", ""]
     if channel == "candidate":
