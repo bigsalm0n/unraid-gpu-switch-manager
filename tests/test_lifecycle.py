@@ -154,6 +154,22 @@ class Rig(unittest.TestCase):
 
 
 class LifecycleTests(Rig):
+    def test_unbound_audio_is_verified_and_restores_to_unbound(self):
+        audio = self.gaming[:-1] + "1"
+        (self.hw.pci / audio / "driver").unlink()
+        plan = self.m.prepare(self.cfg, "game", "Windows", self.domain_id, domain(self.xml())[2], True)
+        self.assertIsNone(plan["drivers"][audio])
+        self.hook("prepare")
+        self.assertIsNone(self.m.lease("game", self.cfg)["drivers"][audio])
+        self.bound()
+        self.hook("start")
+        self.hook("started")
+        self.driver(self.gaming, "nvidia")
+        (self.hw.pci / audio / "driver").unlink()
+        self.hook("release")
+        self.assertEqual(self.ops[-2:], [("start", "voice"), ("start", "dependent")])
+        self.assertFalse(self.store.journal("game").exists())
+
     def test_identical_ids_target_specific_clients_and_audio(self):
         cards = self.hw.discover()
         self.assertEqual(len(cards), 2)

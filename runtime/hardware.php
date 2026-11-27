@@ -216,9 +216,10 @@ class Hardware
         }
         if ($host) {
             ensure($data['uuid'] === $gpu->uuid && $data['uuid'] && !$data['error'], 'Host GPU UUID unavailable or changed');
-            ensure($data['drivers'][$gpu->pci] === 'nvidia' && !in_array(null, $data['drivers'], true)
-                && !in_array('vfio-pci', $data['drivers'], true), 'Expected a host driver on every function');
-            foreach ($addresses as $address) {
+            ensure($data['drivers'][$gpu->pci] === 'nvidia', 'Expected the NVIDIA host driver at ' . $gpu->pci);
+            foreach ($data['drivers'] as $address => $bound) {
+                // An approved audio sibling may be unbound on the host.
+                ensure($bound !== 'vfio-pci', 'PCI function ' . $address . ' is already bound to VFIO. Resolve that assignment before starting the VM.');
                 $override = $this->pci . '/' . $address . '/driver_override';
                 ensure(!file_exists($override) || in_array(field($override), ['', '(null)'], true),
                     'Review existing PCI driver override at ' . $address);
